@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520">
+<defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#fff4e6"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>
+<rect width="800" height="520" fill="url(#g)"/>
+<circle cx="205" cy="170" r="90" fill="#b5172f" opacity=".95"/><circle cx="315" cy="235" r="95" fill="#b5172f" opacity=".85"/><circle cx="455" cy="170" r="80" fill="#b5172f" opacity=".75"/>
+<path d="M165 93c30-38 70-45 116-16-42-1-74 10-116 16z" fill="#2d6a4f"/><path d="M275 153c35-45 78-47 119-18-50 1-81 13-119 18z" fill="#2d6a4f"/>
+<rect x="80" y="330" width="640" height="92" rx="24" fill="#fff" opacity=".92"/>
+<text x="400" y="370" text-anchor="middle" font-family="Tahoma,Arial" font-size="38" font-weight="700" fill="#212529">อบแห้ง</text>
+<text x="400" y="405" text-anchor="middle" font-family="Tahoma,Arial" font-size="24" fill="#6c757d">ไร่ไขแสงสตรอเบอร์รี่</text>
+</svg>

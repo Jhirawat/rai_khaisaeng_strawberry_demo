@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1024" viewBox="0 0 720 1024">
+<rect width="720" height="1024" rx="28" fill="#E8F5E9"/>
+<text x="360" y="90" font-size="38" font-weight="700" text-anchor="middle" fill="#1B5E20" font-family="Arial">หลักฐานการโอนเงิน</text>
+<rect x="70" y="140" width="580" height="740" rx="24" fill="#FFFFFF" stroke="#1B5E20" stroke-width="4"/>
+<text x="120" y="230" font-size="34" fill="#222" font-family="Arial">QR Code</text>
+<text x="120" y="300" font-size="30" fill="#222" font-family="Arial">รายการสำเร็จ</text>
+<text x="120" y="370" font-size="28" fill="#222" font-family="Arial">ยอดเงิน: 528.00 บาท</text>
+<text x="120" y="430" font-size="28" fill="#222" font-family="Arial">วันที่: 10/06/2026 เวลา 22:31</text>
+<text x="120" y="490" font-size="26" fill="#222" font-family="Arial">ผู้รับเงิน: ไร่ไขแสงสตรอเบอร์รี่</text>
+<rect x="250" y="560" width="220" height="220" fill="none" stroke="#1B5E20" stroke-width="10"/>
+<path d="M280 590h60v60h-60zM380 590h60v60h-60zM280 690h60v60h-60zM380 690h25v25h35v35h-60z" fill="#1B5E20"/>
+</svg>

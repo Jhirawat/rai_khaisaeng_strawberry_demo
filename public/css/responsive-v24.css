@@ -1,0 +1,130 @@
+/* Rai Khaisaeng Strawberry v24 - Responsive Design / Mobile First */
+:root{
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+html{scroll-behavior:smooth}
+img,svg,video,canvas{max-width:100%;height:auto}
+.table-responsive{border-radius:18px}
+
+/* Touch friendly controls */
+.btn,.form-control,.form-select{min-height:42px}
+@media(max-width:575.98px){
+  .btn,.form-control,.form-select{min-height:46px;font-size:16px}
+  .container{padding-left:14px;padding-right:14px}
+}
+
+/* Storefront Navbar */
+@media(max-width:991.98px){
+  .navbar-main{padding:.55rem 0!important}
+  .brand-logo{font-size:1rem;max-width:72vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand-logo img{height:38px;max-width:190px}
+  .navbar-main .navbar-collapse{background:var(--shop-card);border-radius:18px;margin-top:.75rem;padding:.75rem;box-shadow:0 12px 30px rgba(0,0,0,.08)}
+  .navbar-main .nav-link{padding:.72rem .85rem;border-radius:14px}
+  .navbar-main .nav-link:hover{background:color-mix(in srgb,var(--soft) 45%,white)}
+  .search-box{min-width:100%!important;width:100%;order:10}
+  .cart-link{font-size:1.25rem;padding:.45rem .7rem!important}
+}
+@media(max-width:575.98px){
+  .brand-logo img{height:34px;max-width:155px}
+  .cart-badge{top:-4px;right:0;font-size:.68rem}
+}
+
+/* Hero / Promo */
+@media(max-width:767.98px){
+  .hero-banner{min-height:230px!important;border-radius:20px;padding:1.25rem!important;text-align:center}
+  .hero-banner h1{font-size:1.85rem!important;line-height:1.15!important}
+  .hero-banner .lead{font-size:.98rem}
+  .hero-card{display:none}
+  .promo-strip{border-radius:18px}
+  .promo-img{height:150px!important}
+  .promo-content{padding:1.25rem!important;text-align:center}
+}
+
+/* Product Grid */
+.product-card .card-body{display:flex;flex-direction:column}
+.product-card h5{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.55em}
+@media(max-width:575.98px){
+  .product-thumb{height:132px!important}
+  .product-card{border-radius:14px}
+  .product-card .card-body{padding:.82rem}
+  .product-card h5{font-size:.94rem;min-height:2.4em;margin-bottom:.35rem}
+  .product-card .text-muted{font-size:.78rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .product-card .fs-5{font-size:1rem!important}
+  .product-card .btn{width:100%;justify-content:center;font-size:.78rem;padding:.38rem .55rem;min-height:38px}
+  .product-card .d-flex.gap-2{gap:.4rem!important}
+  .product-card form{width:100%}
+  .row.g-4 > .col-md-6.col-xl-4{width:50%;padding-left:.45rem;padding-right:.45rem}
+  .row.g-4{--bs-gutter-y:.9rem;--bs-gutter-x:.7rem}
+  .category-banner{padding:22px!important;border-radius:20px!important}
+  .category-banner h2{font-size:1.35rem}
+  .category-banner p{font-size:.9rem}
+  aside .sticky-lg-top{position:static!important}
+  .category-filter-link{display:inline-flex;margin:0 .35rem .45rem 0;font-size:.86rem;padding:8px 12px}
+}
+
+/* Cart: table becomes compact card list */
+@media(max-width:767.98px){
+  .cart-table thead{display:none}
+  .cart-table,.cart-table tbody,.cart-table tr,.cart-table td{display:block;width:100%}
+  .cart-table tr{background:#fff;border-bottom:1px solid #f1d9dd;padding:.75rem .85rem}
+  .cart-table td{border:0!important;padding:.35rem 0!important;text-align:left!important}
+  .cart-table td:nth-child(2)::before{content:'ราคาต่อชิ้น: ';font-weight:700;color:var(--text)}
+  .cart-table td:nth-child(3)::before{content:'จำนวน: ';font-weight:700;color:var(--text);display:block;margin-bottom:.35rem}
+  .cart-table td:nth-child(4)::before{content:'รวม: ';font-weight:700;color:var(--text)}
+  .cart-actions form,.cart-actions button{width:100%}
+  .qty-pill{width:100%;justify-content:space-between}.qty-pill form{flex:1}.qty-pill .btn{width:100%}.qty-num{min-width:70px}
+}
+
+/* Checkout */
+@media(max-width:991.98px){
+  .checkout-summary-card,.checkout-sticky-summary{position:static!important;top:auto!important}
+}
+@media(max-width:575.98px){
+  .payment-card{padding:.85rem!important;border-radius:14px!important}
+  .payment-info img{max-width:250px!important}
+  .bank-transfer-card{padding:1rem!important}
+  .kbank-icon{width:50px!important;height:50px!important;font-size:1.45rem!important;border-radius:14px!important}
+  .bank-number{font-size:1.3rem!important;word-break:break-word}
+  .sticky-mobile-checkout{position:fixed;left:0;right:0;bottom:0;z-index:1040;background:#fff;padding:.75rem 1rem calc(.75rem + var(--mobile-safe-bottom));box-shadow:0 -10px 24px rgba(0,0,0,.12)}
+  body.has-sticky-checkout{padding-bottom:96px}
+}
+
+/* Footer */
+@media(max-width:767.98px){
+  .footer-top{font-size:.9rem;padding:.7rem .85rem}
+  .site-footer{padding:2rem 0 1rem;text-align:left}
+  .site-footer .row>[class*='col-']{margin-bottom:1.35rem}
+  .footer-map{height:120px!important}
+  .social-circle{width:38px;height:38px;font-size:1.05rem}
+}
+
+/* Admin responsive */
+.mobile-admin-menu{display:none!important}
+.admin-backdrop{display:none}
+@media(max-width:991.98px){
+  .mobile-admin-menu{display:inline-flex!important}
+  .admin-sidebar{position:fixed!important;top:0;left:0;bottom:0;z-index:1060;width:290px!important;max-width:86vw;overflow-y:auto;transform:translateX(-105%);transition:transform .22s ease;box-shadow:18px 0 40px rgba(0,0,0,.25)}
+  body.admin-sidebar-open .admin-sidebar{transform:translateX(0)}
+  .admin-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1050}
+  body.admin-sidebar-open .admin-backdrop{display:block}
+  main.flex-fill{width:100%;padding:1rem!important}
+  .admin-topbar{border-radius:16px;padding:.85rem 1rem!important;gap:.75rem}
+  .admin-topbar h3{font-size:1.25rem}
+}
+@media(max-width:575.98px){
+  .admin-topbar{align-items:flex-start!important;flex-wrap:wrap}.admin-topbar .dropdown{margin-left:auto}
+  .content-card{border-radius:16px}.metric-card{margin-bottom:.75rem}
+  .table-responsive table{min-width:720px}
+  .btn-group,.btn-toolbar{flex-wrap:wrap}
+}
+
+/* Admin and report tables remain horizontally scrollable instead of breaking layout */
+@media(max-width:767.98px){
+  .content-card .table-responsive{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .content-card table th,.content-card table td{white-space:nowrap}
+}
+
+/* Receipt A4 preview on mobile */
+@media(max-width:767.98px){
+  .receipt-page,.receipt-a4,.receipt-wrapper{max-width:100%!important;overflow-x:auto}
+}

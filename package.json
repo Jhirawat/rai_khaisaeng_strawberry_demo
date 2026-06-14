@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "echo No Vite build required. This project uses CDN assets for Bootstrap and Google Fonts.",
+    "build": "echo No Vite build required. This project uses CDN assets for Bootstrap and Google Fonts."
+  },
+  "devDependencies": {}
+}
