@@ -1,0 +1,5 @@
+[phases.setup]
+aptPkgs = ["libpng-dev", "libjpeg-dev", "libfreetype6-dev", "zlib1g-dev", "libzip-dev"]
+
+[variables]
+NIXPACKS_PHP_EXTENSIONS = "gd zip ctype curl dom fileinfo filter hash mbstring openssl pcre pdo pdo_mysql session tokenizer xml"

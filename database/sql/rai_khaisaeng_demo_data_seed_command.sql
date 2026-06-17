@@ -1,0 +1,11 @@
+-- Rai Khaisaeng Strawberry Demo Production Database v22-23
+-- เวอร์ชันนี้ใช้ Laravel Seeder เป็นตัวสร้างข้อมูลจริง เพราะต้องสัมพันธ์กับ migrations และ storage paths
+-- วิธีใช้งาน:
+-- 1) สร้างฐานข้อมูลใน MySQL เช่น rai_khaisaeng
+-- 2) ตั้งค่า .env
+-- 3) รันคำสั่ง:
+--    php artisan migrate:fresh --seed
+-- 4) รัน:
+--    php artisan storage:link
+
+-- Seeder หลัก: database/seeders/DemoProductionSeeder.php
