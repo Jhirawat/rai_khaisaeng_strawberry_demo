@@ -114,7 +114,7 @@ img,svg,video,canvas{max-width:100%;height:auto}
 @media(max-width:575.98px){
   .admin-topbar{align-items:flex-start!important;flex-wrap:wrap}.admin-topbar .dropdown{margin-left:auto}
   .content-card{border-radius:16px}.metric-card{margin-bottom:.75rem}
-  .table-responsive table{min-width:720px}
+  .admin-sidebar + main .table-responsive table{min-width:720px}
   .btn-group,.btn-toolbar{flex-wrap:wrap}
 }
 

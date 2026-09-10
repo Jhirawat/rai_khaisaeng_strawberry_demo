@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('content')
 <div class="container">
-    <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4 page-heading">
         <div><h2 class="fw-bold mb-1">{{__('Shopping Cart')}}</h2><p class="text-muted mb-0">{{__('Check products and adjust quantities before payment')}}</p></div>
         <a class="btn btn-outline-brand rounded-pill" href="{{route('shop.products')}}"><i class="bi bi-arrow-left"></i> {{__('Continue Shopping')}}</a>
     </div>

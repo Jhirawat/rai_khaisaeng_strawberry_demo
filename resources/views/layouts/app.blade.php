@@ -39,7 +39,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{__('Rai Khaisaeng Strawberry Farm')}} | Rai Khaisaeng Strawberry Shop</title>
+    <title>@yield('title', __('Rai Khaisaeng Strawberry Farm').' | Rai Khaisaeng Strawberry Shop')</title>
+    <meta name="description" content="@yield('meta_description', __('Fresh products from Rai Khaisaeng Strawberry Farm, Samoeng, Chiang Mai.'))">
+    <meta name="theme-color" content="{{$shopTheme['shop_brand']}}">
     <link rel="icon" type="image/png" href="{{ asset($faviconPath) }}">
     <link rel="shortcut icon" href="{{ asset($faviconPath) }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,6 +50,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ asset('css/responsive-v24.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/site-refresh.css') }}">
     @stack('styles')
     <style>
         :root{--brand:{{$shopTheme['shop_brand']}};--brand-dark:{{$shopTheme['shop_brand_dark']}};--soft:{{$shopTheme['shop_soft']}};--green:{{$shopTheme['shop_footer']}};--green-2:{{$shopTheme['shop_footer_dark']}};--cream:{{$shopTheme['shop_cream']}};--text:{{$shopTheme['shop_text']}};--nav-text:{{$shopTheme['shop_nav_text'] ?? '#13231F'}};--shop-bg:{{$shopTheme['shop_background']}};--shop-card:{{$shopTheme['shop_card']}};--muted:#6c757d}
@@ -62,6 +65,7 @@
     </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">{{__('Skip to content')}}</a>
 @php
     $navCategories = \App\Models\Category::where('is_active',1)->orderBy('name')->get();
     $cartCount = 0;
@@ -71,23 +75,23 @@
     }
     $currentLocale = app()->getLocale();
 @endphp
-<nav class="navbar navbar-expand-lg navbar-main py-3">
+<nav class="navbar navbar-expand-lg navbar-main py-3" aria-label="{{__('Main navigation')}}">
     <div class="container">
         <a class="brand-logo" href="{{route('shop.home')}}"><img src="{{ asset($currentLocale === 'en' ? $logoEnPath : $logoThPath) }}" alt="{{__('Rai Khaisaeng Strawberry Farm')}}"></a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="{{__('Open navigation')}}"><span class="navbar-toggler-icon"></span></button>
         <div class="collapse navbar-collapse" id="mainNav">
             <ul class="navbar-nav ms-4 me-auto align-items-lg-center">
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">{{__('Products')}}</a>
+                    <a class="nav-link dropdown-toggle {{request()->routeIs('shop.product*') ? 'active' : ''}}" href="#" role="button" data-bs-toggle="dropdown">{{__('Products')}}</a>
                     <ul class="dropdown-menu border-0 shadow">
                         <li><a class="dropdown-item" href="{{route('shop.products')}}">{{__('All Products')}}</a></li><li><hr class="dropdown-divider"></li>
                         @foreach($navCategories as $c)<li><a class="dropdown-item" href="{{route('shop.products',['category'=>$c->slug])}}">{{$c->display_name}}</a></li>@endforeach
                     </ul>
                 </li>
-                @auth<li class="nav-item"><a class="nav-link" href="{{route('member.orders')}}">{{__('Orders')}}</a></li>@endauth
+                @auth<li class="nav-item"><a class="nav-link {{request()->routeIs('member.orders*') ? 'active' : ''}}" href="{{route('member.orders')}}">{{__('Orders')}}</a></li>@endauth
                 @auth @if(auth()->user()->role!='member')<li class="nav-item"><a class="nav-link" href="{{route('admin.dashboard')}}">Admin</a></li>@endif @endauth
             </ul>
-            <form class="d-flex search-box me-lg-3" method="get" action="{{route('shop.products')}}"><input class="form-control rounded-pill" name="search" placeholder="{{__('Search products')}}" value="{{request('search')}}"></form>
+            <form class="d-flex search-box me-lg-3" method="get" action="{{route('shop.products')}}"><label class="visually-hidden" for="navProductSearch">{{__('Search products')}}</label><input id="navProductSearch" class="form-control rounded-pill" name="search" placeholder="{{__('Search products')}}" value="{{request('search')}}"></form>
             <div class="dropdown me-lg-3">
                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-pill" data-bs-toggle="dropdown"><i class="bi bi-globe2"></i> {{strtoupper($currentLocale)}}</button>
                 <ul class="dropdown-menu dropdown-menu-end">
@@ -97,7 +101,7 @@
             </div>
             <div class="navbar-nav align-items-lg-center">
                 @auth
-                    <a class="nav-link cart-link me-lg-2" href="{{route('member.cart')}}"><i class="bi bi-cart3"></i><span id="cartBadge" class="cart-badge" @if($cartCount<1) style="display:none" @endif>{{$cartCount}}</span></a>
+                    <a class="nav-link cart-link me-lg-2" href="{{route('member.cart')}}" aria-label="{{__('Shopping Cart')}}"><i class="bi bi-cart3" aria-hidden="true"></i><span id="cartBadge" class="cart-badge" @if($cartCount<1) style="display:none" @endif>{{$cartCount}}</span></a>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-light rounded-pill dropdown-toggle d-flex align-items-center gap-2 px-3" data-bs-toggle="dropdown" type="button">
                             <span class="avatar-dot"><i class="bi bi-person-circle"></i></span><span class="d-none d-lg-inline">{{auth()->user()->name}}</span>
@@ -117,13 +121,13 @@
         </div>
     </div>
 </nav>
-<main class="py-4">
+<main id="main-content" class="py-4" tabindex="-1">
     @if(session('success'))<div class="container"><div class="alert alert-success rounded-4 shadow-sm">{{session('success')}}</div></div>@endif
     @if(session('error'))<div class="container"><div class="alert alert-danger rounded-4 shadow-sm">{{session('error')}}</div></div>@endif
     @yield('content')
 </main>
 <div class="footer-top"><i class="bi bi-geo-alt me-2"></i> {{__('Rai Khaisaeng Strawberry Farm')}} {{__('Samoeng District, Chiang Mai')}}</div>
-<footer class="site-footer">
+<footer class="site-footer" id="contact">
     <div class="container">
         <div class="row g-4">
             @php
@@ -137,14 +141,14 @@
                 $companyMapEmbed = 'https://www.google.com/maps?q=18.854859,98.561256&z=16&output=embed';
             @endphp
             <div class="col-lg-3"><h5 class="fw-bold">{{__('Rai Khaisaeng Strawberry Farm')}}</h5><p class="mb-2">{{__('Rai Khaisaeng Strawberry Farm and Community Products')}}</p><p class="mb-1"><i class="bi bi-person"></i> {{$companyPhone1Name}} {{$companyPhone1}}</p><p class="mb-1"><i class="bi bi-person"></i> {{$companyPhone2Name}} {{$companyPhone2}}</p><p class="mb-3"><i class="bi bi-person"></i> {{$companyPhone3Name}} {{$companyPhone3}}</p><a class="btn btn-outline-light px-4" href="tel:{{preg_replace('/\D+/','',$companyPhone1)}}">{{__('Contact Us')}} <i class="bi bi-chevron-right"></i></a></div>
-            <div class="col-lg-4"><h5 class="fw-bold">{{__('Map and Branch')}}</h5><p>{{__('Rai Khaisaeng Strawberry Farm')}} {{__('Bo Kaeo Subdistrict, Samoeng District, Chiang Mai')}}</p><iframe class="footer-map mb-2" loading="lazy" src="{{$companyMapEmbed}}"></iframe><a target="_blank" href="{{$companyMapUrl}}"><i class="bi bi-map me-2"></i> {{__('Open Google Maps')}}</a></div>
-            <div class="col-lg-3"><h5 class="fw-bold">{{__('Help')}}</h5><p><a href="{{route('shop.products')}}">{{__('All Products')}}</a></p><p><a href="{{route('member.orders')}}">{{__('Orders')}}</a></p><p><a href="#">FAQ</a></p></div>
-            <div class="col-lg-2"><h5 class="fw-bold">{{__('Contact Channels')}}</h5><div class="mt-3"><a class="social-circle social-facebook" href="{{$socialFacebook}}" target="_blank"><i class="bi bi-facebook"></i></a><a class="social-circle social-youtube" href="{{$socialYoutube}}" target="_blank"><i class="bi bi-youtube"></i></a><a class="social-circle social-line" href="{{$socialLine}}" target="_blank"><i class="bi bi-line"></i></a></div></div>
+            <div class="col-lg-4"><h5 class="fw-bold">{{__('Map and Branch')}}</h5><p>{{__('Rai Khaisaeng Strawberry Farm')}} {{__('Bo Kaeo Subdistrict, Samoeng District, Chiang Mai')}}</p><iframe class="footer-map mb-2" loading="lazy" title="{{__('Map of Rai Khaisaeng Strawberry Farm')}}" src="{{$companyMapEmbed}}"></iframe><a target="_blank" rel="noopener noreferrer" href="{{$companyMapUrl}}"><i class="bi bi-map me-2"></i> {{__('Open Google Maps')}}</a></div>
+            <div class="col-lg-3"><h5 class="fw-bold">{{__('Help')}}</h5><p><a href="{{route('shop.products')}}">{{__('All Products')}}</a></p>@auth<p><a href="{{route('member.orders')}}">{{__('Orders')}}</a></p>@else<p><a href="{{route('login')}}">{{__('Track your order')}}</a></p>@endauth<p><a href="tel:{{preg_replace('/\D+/','',$companyPhone1)}}">{{__('Contact the farm')}}</a></p></div>
+            <div class="col-lg-2"><h5 class="fw-bold">{{__('Contact Channels')}}</h5><div class="mt-3">@if($socialFacebook !== '#')<a class="social-circle social-facebook" href="{{$socialFacebook}}" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i class="bi bi-facebook"></i></a>@endif @if($socialYoutube !== '#')<a class="social-circle social-youtube" href="{{$socialYoutube}}" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><i class="bi bi-youtube"></i></a>@endif @if($socialLine !== '#')<a class="social-circle social-line" href="{{$socialLine}}" target="_blank" rel="noopener noreferrer" aria-label="LINE"><i class="bi bi-line"></i></a>@endif</div></div>
         </div>
         <hr class="border-light opacity-25 my-4"><div class="d-flex flex-wrap justify-content-between small"><span>© {{date('Y')}} {{__('Rai Khaisaeng Strawberry Farm')}}</span><span>{{__('Privacy Policy')}} | {{__('Customer Policy')}}</span></div>
     </div>
 </footer>
-<div id="cartToast" class="toast-cart alert alert-success shadow rounded-4"><i class="bi bi-check-circle me-2"></i><span>{{__('Add to Cart')}}</span></div>
+<div id="cartToast" class="toast-cart alert alert-success shadow rounded-4" role="status" aria-live="polite"><i class="bi bi-check-circle me-2" aria-hidden="true"></i><span>{{__('Add to Cart')}}</span></div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('submit', async function(e){
@@ -156,10 +160,11 @@ document.addEventListener('submit', async function(e){
         const res=await fetch(form.action,{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},body:new FormData(form)});
         if(res.status===401 || res.redirected){ window.location.href='{{route('login')}}'; return; }
         const data=await res.json();
+        if(!res.ok || data.success === false) throw new Error(data.message || '{{__('Unable to add item to cart')}}');
         if(data.cart_count!==undefined){ const badge=document.getElementById('cartBadge'); badge.textContent=data.cart_count; badge.style.display='inline-block'; }
-        const toast=document.getElementById('cartToast'); toast.style.display='block'; setTimeout(()=>toast.style.display='none',1800);
-    }catch(err){ form.submit(); }
-    finally{ btn.disabled=false; btn.innerHTML=old; }
+        const toast=document.getElementById('cartToast'); toast.classList.remove('alert-danger'); toast.classList.add('alert-success'); toast.querySelector('span').textContent=data.message || '{{__('Added to cart')}}'; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2400);
+    }catch(err){ const toast=document.getElementById('cartToast'); toast.classList.remove('alert-success'); toast.classList.add('alert-danger'); toast.querySelector('span').textContent=err.message || '{{__('Unable to add item to cart')}}'; toast.style.display='block'; setTimeout(()=>toast.style.display='none',3500); }
+    finally{ btn.disabled=false; btn.innerHTML=old; btn.focus(); }
 });
 </script>
 <script src="{{ asset('js/responsive-v24.js') }}"></script>

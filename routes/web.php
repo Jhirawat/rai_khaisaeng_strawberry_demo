@@ -43,6 +43,7 @@ Route::middleware(['auth'])->prefix('member')->name('member.')->group(function()
     Route::patch('/cart/item/{item}',[CartController::class,'update'])->name('cart.update');
     Route::delete('/cart/item/{item}',[CartController::class,'destroy'])->name('cart.destroy');
     Route::get('/checkout',[CheckoutController::class,'form'])->name('checkout');
+    Route::get('/checkout/summary',[CheckoutController::class,'summary'])->name('checkout.summary');
     Route::post('/checkout',[CheckoutController::class,'store'])->name('checkout.store');
     Route::get('/orders',[MemberOrderController::class,'index'])->name('orders');
     Route::get('/orders/{order}',[MemberOrderController::class,'show'])->name('orders.show');

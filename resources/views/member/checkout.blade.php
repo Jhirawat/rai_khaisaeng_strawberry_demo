@@ -82,11 +82,11 @@
                         <div class="col-md-4"><label class="payment-card w-100"><input class="form-check-input me-2 payment-radio" type="radio" name="payment_method" value="bank_transfer"> {{__('Bank Transfer')}}</label></div>
                         <div class="col-md-4"><label class="payment-card w-100"><input class="form-check-input me-2 payment-radio" type="radio" name="payment_method" value="cod"> {{__('Cash on Delivery')}}</label></div>
                     </div>
-                    <div id="qrBox" class="payment-info mt-4 text-center"><div class="small text-muted">{{__('Grand Total')}}</div><div class="fs-4 text-danger fw-bold mb-2">฿{{number_format($total,2)}}</div><img src="{{asset('promptpay_qr.jpg')}}" class="img-fluid rounded-4 border" style="max-width:330px" alt="PromptPay QR"><p class="mt-3 mb-0 text-muted">{{__('Scan QR code to transfer, then upload the payment slip below')}}</p></div>
+                    <div id="qrBox" class="payment-info mt-4 text-center"><div class="small text-muted">{{__('Grand Total')}}</div><div class="fs-4 text-danger fw-bold mb-2" data-summary-total>฿{{number_format($total,2)}}</div><img src="{{asset('promptpay_qr.jpg')}}" class="img-fluid rounded-4 border" style="max-width:330px" alt="PromptPay QR"><p class="mt-3 mb-0 text-muted">{{__('Scan QR code to transfer, then upload the payment slip below')}}</p></div>
                     <div id="bankBox" class="payment-info mt-4" style="display:none">
                         <div class="bank-transfer-card rounded-4 p-4">
                             <div class="d-flex align-items-center gap-3 mb-3"><div class="kbank-icon">K</div><div><h5 class="fw-bold mb-0">{{__('Kasikorn Bank')}}</h5><div class="text-muted small">{{__('Bank Transfer Account')}}</div></div></div>
-                            <div class="row g-3 align-items-center"><div class="col-md-7"><div class="small text-muted">{{__('Account Number')}}</div><div class="fs-3 fw-bold bank-number">080-188-2323</div><div class="mt-2"><span class="text-muted">{{__('Account Name')}}:</span> <b>จิรวัฒน์ โปธา</b></div></div><div class="col-md-5 text-md-end"><div class="small text-muted">{{__('Grand Total')}}</div><div class="fs-3 fw-bold text-danger">฿{{number_format($total,2)}}</div><div class="small text-muted mt-1">{{__('Please transfer the exact amount and upload the slip')}}</div></div></div>
+                            <div class="row g-3 align-items-center"><div class="col-md-7"><div class="small text-muted">{{__('Account Number')}}</div><div class="fs-3 fw-bold bank-number">080-188-2323</div><div class="mt-2"><span class="text-muted">{{__('Account Name')}}:</span> <b>จิรวัฒน์ โปธา</b></div></div><div class="col-md-5 text-md-end"><div class="small text-muted">{{__('Grand Total')}}</div><div class="fs-3 fw-bold text-danger" data-summary-total>฿{{number_format($total,2)}}</div><div class="small text-muted mt-1">{{__('Please transfer the exact amount and upload the slip')}}</div></div></div>
                         </div>
                     </div>
                     <div id="codBox" class="payment-info mt-4" style="display:none"><div class="alert alert-warning rounded-4 mb-0">เลือก{{__('Cash on Delivery')}} ระบบจะให้แอดมินตรวจสอบและจัดส่งตามสถานะคำสั่งซื้อ</div></div>
@@ -97,12 +97,13 @@
                 <div class="bg-white rounded-4 shadow-sm p-4 sticky-top checkout-summary-card" style="top:100px">
                     <h5 class="fw-bold mb-3"><i class="bi bi-basket me-2 text-danger"></i>{{__('Order Items')}}</h5>
                     <div class="table-responsive"><table class="table align-middle"><thead class="table-light"><tr><th>{{__('Product')}}</th><th class="text-center">{{__('Quantity')}}</th><th class="text-end">{{__('Total')}}</th></tr></thead><tbody>@foreach($cart->items as $i)<tr><td><b>{{$i->product->display_name}}</b><div class="small text-muted">฿{{number_format($i->price,2)}} / {{__('pieces')}}</div></td><td class="text-center">{{$i->quantity}}</td><td class="text-end text-danger fw-bold">฿{{number_format($i->price*$i->quantity,2)}}</td></tr>@endforeach</tbody></table></div>
-                    <div class="d-flex justify-content-between"><span>ราคาก่อน VAT</span><span>฿{{number_format($beforeVat,2)}}</span></div>
-                    <div class="d-flex justify-content-between mt-1"><span>VAT {{$vatRate}}%</span><span>฿{{number_format($vat,2)}}</span></div>
-                    <div class="d-flex justify-content-between mt-2"><span class="fw-bold">ราคารวมสินค้า</span><b>฿{{number_format($subtotal,2)}}</b></div><hr>
-                    <div class="d-flex justify-content-between mt-2"><span>{{__('Shipping Fee')}}<div class="small text-muted">{{$shippingNote}}</div></span><b>฿{{number_format($shipping,2)}}</b></div>
-                    <div class="d-flex justify-content-between mt-1"><span>{{__('Withholding Tax')}}</span><span>฿{{number_format($withholding,2)}}</span></div><hr>
-                    <div class="d-flex justify-content-between fs-5"><span class="fw-bold">{{__('Grand Total')}}</span><b class="text-danger">฿{{number_format($total,2)}}</b></div>
+                    <div class="d-flex justify-content-between"><span>ราคาก่อน VAT</span><span data-summary-before-vat>฿{{number_format($beforeVat,2)}}</span></div>
+                    <div class="d-flex justify-content-between mt-1"><span>VAT {{$vatRate}}%</span><span data-summary-vat>฿{{number_format($vat,2)}}</span></div>
+                    <div class="d-flex justify-content-between mt-2"><span class="fw-bold">ราคารวมสินค้า</span><b data-summary-subtotal>฿{{number_format($subtotal,2)}}</b></div><hr>
+                    <div class="d-flex justify-content-between mt-2"><span>{{__('Shipping Fee')}}<div class="small text-muted" data-summary-shipping-note>{{$shippingNote}}</div></span><b data-summary-shipping>฿{{number_format($shipping,2)}}</b></div>
+                    <div class="d-flex justify-content-between mt-1"><span>{{__('Withholding Tax')}}</span><span data-summary-withholding>฿{{number_format($withholding,2)}}</span></div><hr>
+                    <div class="d-flex justify-content-between fs-5"><span class="fw-bold">{{__('Grand Total')}}</span><b class="text-danger" data-summary-total>฿{{number_format($total,2)}}</b></div>
+                    <div class="small text-muted mt-2" id="summaryStatus" role="status" aria-live="polite"></div>
                     <div class="checkout-submit-wrap"><button class="btn btn-brand btn-lg rounded-pill w-100 mt-4 js-place-order-btn"><i class="bi bi-check2-circle"></i> {{__('Place Order')}}</button></div>
                     <a class="btn btn-outline-secondary rounded-pill w-100 mt-2" href="{{route('member.cart')}}">{{__('Back to Cart')}}</a>
                 </div>
@@ -119,7 +120,29 @@ function togglePayment(){ const val=document.querySelector('.payment-radio:check
 document.querySelectorAll('.payment-radio').forEach(r=>r.addEventListener('change',togglePayment));togglePayment();
 const savedAddressSelect=document.getElementById('savedAddressSelect');
 async function fillSavedAddress(){ if(!savedAddressSelect) return; const opt=savedAddressSelect.options[savedAddressSelect.selectedIndex]; if(!opt || !opt.value) return; document.getElementById('recipientName').value=opt.dataset.recipient || ''; document.getElementById('recipientPhone').value=opt.dataset.phone || ''; document.getElementById('recipientAddress').value=opt.dataset.address || ''; const box=document.getElementById('checkoutAddressBox'); box.querySelector('[data-province]').dataset.value=opt.dataset.province || ''; box.querySelector('[data-district]').dataset.value=opt.dataset.district || ''; box.querySelector('[data-subdistrict]').dataset.value=opt.dataset.subdistrict || ''; box.querySelector('[data-postal]').dataset.value=opt.dataset.postal || ''; await window.initThaiAddressCascader(box); }
-if(savedAddressSelect){ savedAddressSelect.addEventListener('change',fillSavedAddress); fillSavedAddress(); }
+const money=value=>'฿'+Number(value||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+let summaryTimer;
+async function refreshOrderSummary(){
+    const province=document.getElementById('recipientProvince')?.value || '';
+    const status=document.getElementById('summaryStatus');
+    if(status) status.textContent='กำลังคำนวณยอดล่าสุด…';
+    try{
+        const response=await fetch('{{route('member.checkout.summary')}}?province='+encodeURIComponent(province),{headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'}});
+        const data=await response.json();
+        if(!response.ok) throw new Error(data.message || 'คำนวณยอดไม่สำเร็จ');
+        document.querySelectorAll('[data-summary-total]').forEach(el=>el.textContent=money(data.grand_total));
+        document.querySelectorAll('[data-summary-before-vat]').forEach(el=>el.textContent=money(data.before_vat));
+        document.querySelectorAll('[data-summary-vat]').forEach(el=>el.textContent=money(data.vat));
+        document.querySelectorAll('[data-summary-subtotal]').forEach(el=>el.textContent=money(data.subtotal));
+        document.querySelectorAll('[data-summary-shipping]').forEach(el=>el.textContent=money(data.shipping));
+        document.querySelectorAll('[data-summary-withholding]').forEach(el=>el.textContent=money(data.withholding));
+        document.querySelectorAll('[data-summary-shipping-note]').forEach(el=>el.textContent=data.shipping_note || '');
+        if(status) status.textContent='อัปเดตยอดตามที่อยู่จัดส่งแล้ว';
+    }catch(error){ if(status) status.textContent=error.message; }
+}
+function queueSummaryRefresh(){ clearTimeout(summaryTimer); summaryTimer=setTimeout(refreshOrderSummary,250); }
+if(savedAddressSelect){ savedAddressSelect.addEventListener('change',async()=>{await fillSavedAddress(); queueSummaryRefresh();}); fillSavedAddress().then(queueSummaryRefresh); }
+document.getElementById('recipientProvince')?.addEventListener('change',queueSummaryRefresh);
 function toggleTaxInvoice(){ const box=document.getElementById('taxInvoiceBox'); const on=document.getElementById('needsTaxInvoice')?.checked; if(box) box.style.display=on?'flex':'none'; }
 document.getElementById('needsTaxInvoice')?.addEventListener('change',toggleTaxInvoice); toggleTaxInvoice();
 </script>

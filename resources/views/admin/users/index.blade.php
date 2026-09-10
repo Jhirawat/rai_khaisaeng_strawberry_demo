@@ -44,7 +44,7 @@
           <td class="text-end"><div class="action-stack justify-content-end">
             <a class="btn btn-soft" href="{{ route('admin.users.show',$u) }}"><i class="bi bi-eye"></i> ดู</a>
             <a class="btn btn-soft" href="{{ route('admin.users.edit',$u) }}"><i class="bi bi-pencil"></i> แก้ไข</a>
-            <form method="post" action="{{ route('admin.users.resetPassword',$u) }}" onsubmit="return confirm('รีเซ็ตรหัสผ่านผู้ใช้นี้เป็น password ?')">@csrf<button class="btn btn-outline-warning rounded-pill"><i class="bi bi-key"></i> รีเซ็ต</button></form>
+            <form method="post" action="{{ route('admin.users.resetPassword',$u) }}" onsubmit="return confirm('สร้างรหัสผ่านชั่วคราวแบบสุ่มให้ผู้ใช้นี้?')">@csrf<button class="btn btn-outline-warning rounded-pill"><i class="bi bi-key"></i> รหัสชั่วคราว</button></form>
             <form method="post" action="{{ route('admin.users.toggleStatus',$u) }}" onsubmit="return confirm('ยืนยันเปลี่ยนสถานะบัญชีนี้?')">@csrf @method('patch')<button class="btn btn-outline-secondary rounded-pill">{{ $u->is_active ? 'ระงับ' : 'เปิดใช้' }}</button></form>
           </div></td>
         </tr>

@@ -1,127 +1,136 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
-use App\Models\{Product,Category,Inventory,ProductImage};
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Category;
+use App\Models\Inventory;
+use App\Models\Product;
+use App\Models\ProductImage;
 use App\Support\ActivityLogger;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
         $categories = Category::orderBy('name')->get();
-        $products = Product::with('category','inventory','images')
-            ->when($request->filled('search'), function($q) use($request){
+        $products = Product::with('category', 'inventory', 'images')
+            ->when($request->filled('search'), function ($q) use ($request) {
                 $keyword = trim($request->search);
-                $q->where(function($qq) use($keyword){
-                    $qq->where('name','like',"%{$keyword}%")
-                       ->orWhere('sku','like',"%{$keyword}%")
-                       ->orWhere('description','like',"%{$keyword}%");
+                $q->where(function ($qq) use ($keyword) {
+                    $qq->where('name', 'like', "%{$keyword}%")
+                        ->orWhere('sku', 'like', "%{$keyword}%")
+                        ->orWhere('description', 'like', "%{$keyword}%");
                 });
             })
-            ->when($request->filled('category_id'), fn($q)=>$q->where('category_id',$request->category_id))
-            ->when($request->filled('status'), fn($q)=>$q->where('status',$request->status))
-            ->when($request->stock==='low', fn($q)=>$q->whereHas('inventory', fn($i)=>$i->whereColumn('quantity','<=','low_stock_threshold')->where('quantity','>',0)))
-            ->when($request->stock==='out', fn($q)=>$q->whereHas('inventory', fn($i)=>$i->where('quantity','<=',0)))
+            ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->category_id))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
+            ->when($request->stock === 'low', fn ($q) => $q->whereHas('inventory', fn ($i) => $i->whereColumn('quantity', '<=', 'low_stock_threshold')->where('quantity', '>', 0)))
+            ->when($request->stock === 'out', fn ($q) => $q->whereHas('inventory', fn ($i) => $i->where('quantity', '<=', 0)))
             ->latest()
-            ->paginate((int) $request->get('per_page',20))
+            ->paginate((int) $request->get('per_page', 20))
             ->withQueryString();
-        return view('admin.products.index', compact('products','categories'));
+
+        return view('admin.products.index', compact('products', 'categories'));
     }
 
     public function create()
     {
         $categories = Category::all();
+
         return view('admin.products.form', compact('categories'));
     }
 
     public function store(Request $r)
     {
         $d = $r->validate([
-            'category_id'=>'required|exists:categories,id',
-            'name'=>'required|string|max:255',
-            'name_en'=>'nullable|string|max:255',
-            'price'=>'required|numeric|min:0',
-            'cost'=>'nullable|numeric|min:0',
-            'sku'=>'nullable|string|max:255|unique:products',
-            'description'=>'nullable|string',
-            'description_en'=>'nullable|string',
-            'quantity'=>'required|integer|min:0',
-            'low_stock_threshold'=>'nullable|integer|min:0',
-            'status'=>'nullable|in:active,inactive',
-            'featured'=>'nullable',
-            'images.*'=>'mimes:jpg,jpeg,png,webp|max:4096'
+            'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string|max:255',
+            'name_en' => 'nullable|string|max:255',
+            'price' => 'required|numeric|min:0',
+            'cost' => 'nullable|numeric|min:0',
+            'sku' => 'nullable|string|max:255|unique:products',
+            'description' => 'nullable|string',
+            'description_en' => 'nullable|string',
+            'quantity' => 'required|integer|min:0',
+            'low_stock_threshold' => 'nullable|integer|min:0',
+            'status' => 'nullable|in:active,inactive',
+            'featured' => 'nullable',
+            'images.*' => 'mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         $p = Product::create([
-            'category_id'=>$d['category_id'],
-            'name'=>$d['name'],
-            'name_en'=>$d['name_en'] ?? null,
-            'slug'=>$this->uniqueSlug($d['name']),
-            'description'=>$d['description'] ?? null,
-            'description_en'=>$d['description_en'] ?? null,
-            'price'=>$d['price'],
-            'cost'=>$d['cost'] ?? 0,
-            'sku'=>$this->uniqueSku((int) $d['category_id'], $d['sku'] ?? null),
-            'status'=>$d['status'] ?? 'active',
-            'featured'=>$r->boolean('featured'),
-            'added_at'=>now(),
+            'category_id' => $d['category_id'],
+            'name' => $d['name'],
+            'name_en' => $d['name_en'] ?? null,
+            'slug' => $this->uniqueSlug($d['name']),
+            'description' => $d['description'] ?? null,
+            'description_en' => $d['description_en'] ?? null,
+            'price' => $d['price'],
+            'cost' => $d['cost'] ?? 0,
+            'sku' => $this->uniqueSku((int) $d['category_id'], $d['sku'] ?? null),
+            'status' => $d['status'] ?? 'active',
+            'featured' => $r->boolean('featured'),
+            'added_at' => now(),
         ]);
 
-        Inventory::create(['product_id'=>$p->id,'quantity'=>$d['quantity'],'low_stock_threshold'=>$d['low_stock_threshold'] ?? 10]);
+        Inventory::create(['product_id' => $p->id, 'quantity' => $d['quantity'], 'low_stock_threshold' => $d['low_stock_threshold'] ?? 10]);
         $this->storeImages($r, $p);
-        ActivityLogger::log('product.created', $p, ['sku'=>$p->sku,'price'=>$p->price]);
+        ActivityLogger::log('product.created', $p, ['sku' => $p->sku, 'price' => $p->price]);
 
-        return redirect()->route('admin.products.edit', $p)->with('success','บันทึกสินค้าเรียบร้อยแล้ว สามารถแก้ไขข้อมูลและรูปต่อได้ทันที');
+        return redirect()->route('admin.products.edit', $p)->with('success', 'บันทึกสินค้าเรียบร้อยแล้ว สามารถแก้ไขข้อมูลและรูปต่อได้ทันที');
     }
 
     public function edit(Request $request, Product $product)
     {
-        $product->load('inventory','images');
+        $product->load('inventory', 'images');
         $categories = Category::all();
-        $returnUrl = $request->query('return_url');
-        return view('admin.products.form', compact('product','categories','returnUrl'));
+        $returnUrl = $this->safeReturnUrl($request->query('return_url'), $request);
+
+        return view('admin.products.form', compact('product', 'categories', 'returnUrl'));
     }
 
     public function update(Request $r, Product $product)
     {
         $d = $r->validate([
-            'category_id'=>'required|exists:categories,id',
-            'name'=>'required|string|max:255',
-            'name_en'=>'nullable|string|max:255',
-            'price'=>'required|numeric|min:0',
-            'cost'=>'nullable|numeric|min:0',
-            'sku'=>'nullable|string|max:255|unique:products,sku,'.$product->id,
-            'description'=>'nullable|string',
-            'description_en'=>'nullable|string',
-            'quantity'=>'nullable|integer|min:0',
-            'low_stock_threshold'=>'nullable|integer|min:0',
-            'status'=>'nullable|in:active,inactive',
-            'featured'=>'nullable',
-            'replace_images'=>'nullable',
-            'images.*'=>'mimes:jpg,jpeg,png,webp|max:4096'
+            'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string|max:255',
+            'name_en' => 'nullable|string|max:255',
+            'price' => 'required|numeric|min:0',
+            'cost' => 'nullable|numeric|min:0',
+            'sku' => 'nullable|string|max:255|unique:products,sku,'.$product->id,
+            'description' => 'nullable|string',
+            'description_en' => 'nullable|string',
+            'quantity' => 'nullable|integer|min:0',
+            'low_stock_threshold' => 'nullable|integer|min:0',
+            'status' => 'nullable|in:active,inactive',
+            'featured' => 'nullable',
+            'replace_images' => 'nullable',
+            'images.*' => 'mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         $product->update([
-            'category_id'=>$d['category_id'],
-            'name'=>$d['name'],
-            'name_en'=>$d['name_en'] ?? null,
-            'description'=>$d['description'] ?? null,
-            'description_en'=>$d['description_en'] ?? null,
-            'price'=>$d['price'],
-            'cost'=>$d['cost'] ?? 0,
-            'sku'=>$this->uniqueSku((int) $d['category_id'], $d['sku'] ?? null, $product->id),
-            'status'=>$d['status'] ?? $product->status,
-            'featured'=>$r->boolean('featured'),
+            'category_id' => $d['category_id'],
+            'name' => $d['name'],
+            'name_en' => $d['name_en'] ?? null,
+            'description' => $d['description'] ?? null,
+            'description_en' => $d['description_en'] ?? null,
+            'price' => $d['price'],
+            'cost' => $d['cost'] ?? 0,
+            'sku' => $this->uniqueSku((int) $d['category_id'], $d['sku'] ?? null, $product->id),
+            'status' => $d['status'] ?? $product->status,
+            'featured' => $r->boolean('featured'),
         ]);
 
         $product->inventory()->updateOrCreate(
-            ['product_id'=>$product->id],
+            ['product_id' => $product->id],
             [
-                'quantity'=>$d['quantity'] ?? ($product->inventory->quantity ?? 0),
-                'low_stock_threshold'=>$d['low_stock_threshold'] ?? ($product->inventory->low_stock_threshold ?? 10),
+                'quantity' => $d['quantity'] ?? ($product->inventory->quantity ?? 0),
+                'low_stock_threshold' => $d['low_stock_threshold'] ?? ($product->inventory->low_stock_threshold ?? 10),
             ]
         );
 
@@ -133,39 +142,48 @@ class ProductController extends Controller
         }
         $this->storeImages($r, $product);
 
-        $returnUrl = $r->input('return_url');
-        ActivityLogger::log('product.updated', $product, ['sku'=>$product->sku,'price'=>$product->price]);
+        $returnUrl = $this->safeReturnUrl($r->input('return_url'), $r);
+        ActivityLogger::log('product.updated', $product, ['sku' => $product->sku, 'price' => $product->price]);
         if ($returnUrl) {
-            return redirect()->to($returnUrl.'#product-row-'.$product->id)->with('success','แก้ไขสินค้าเรียบร้อยแล้ว และกลับมายังหน้ารายการเดิม');
+            return redirect()->to($returnUrl.'#product-row-'.$product->id)->with('success', 'แก้ไขสินค้าเรียบร้อยแล้ว และกลับมายังหน้ารายการเดิม');
         }
-        return redirect()->route('admin.products.edit', $product)->with('success','แก้ไขสินค้าเรียบร้อยแล้ว');
+
+        return redirect()->route('admin.products.edit', $product)->with('success', 'แก้ไขสินค้าเรียบร้อยแล้ว');
     }
 
     public function quickUpdate(Request $r, Product $product)
     {
-        $d=$r->validate([
-            'price'=>'nullable|numeric|min:0',
-            'quantity'=>'nullable|integer|min:0',
-            'status'=>'nullable|in:active,inactive',
+        $d = $r->validate([
+            'price' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|integer|min:0',
+            'status' => 'nullable|in:active,inactive',
         ]);
-        if(array_key_exists('price',$d)) $product->update(['price'=>$d['price']]);
-        if(array_key_exists('status',$d)) $product->update(['status'=>$d['status']]);
-        if(array_key_exists('quantity',$d)) $product->inventory()->updateOrCreate(['product_id'=>$product->id], ['quantity'=>$d['quantity'],'low_stock_threshold'=>$product->inventory->low_stock_threshold ?? 10]);
+        if (array_key_exists('price', $d)) {
+            $product->update(['price' => $d['price']]);
+        }
+        if (array_key_exists('status', $d)) {
+            $product->update(['status' => $d['status']]);
+        }
+        if (array_key_exists('quantity', $d)) {
+            $product->inventory()->updateOrCreate(['product_id' => $product->id], ['quantity' => $d['quantity'], 'low_stock_threshold' => $product->inventory->low_stock_threshold ?? 10]);
+        }
         ActivityLogger::log('product.quick_update', $product, $d);
-        return back()->with('success','อัปเดตข้อมูลสินค้าแบบเร็วแล้ว');
+
+        return back()->with('success', 'อัปเดตข้อมูลสินค้าแบบเร็วแล้ว');
     }
 
     public function bulk(Request $r)
     {
-        $d=$r->validate(['ids'=>'required|array','action'=>'required|in:activate,deactivate,delete']);
-        $query=Product::whereIn('id',$d['ids']);
-        match($d['action']){
-            'activate'=>$query->update(['status'=>'active']),
-            'deactivate'=>$query->update(['status'=>'inactive']),
-            'delete'=>$query->delete(), // ใช้ Soft Delete เพื่อไม่ให้กระทบใบเสร็จ/ออเดอร์เก่า
+        $d = $r->validate(['ids' => 'required|array', 'action' => 'required|in:activate,deactivate,delete']);
+        $query = Product::whereIn('id', $d['ids']);
+        match ($d['action']) {
+            'activate' => $query->update(['status' => 'active']),
+            'deactivate' => $query->update(['status' => 'inactive']),
+            'delete' => $query->delete(), // ใช้ Soft Delete เพื่อไม่ให้กระทบใบเสร็จ/ออเดอร์เก่า
         };
-        ActivityLogger::log('product.bulk_'.$d['action'], null, ['ids'=>$d['ids']]);
-        return back()->with('success','ดำเนินการกับสินค้าที่เลือกแล้ว');
+        ActivityLogger::log('product.bulk_'.$d['action'], null, ['ids' => $d['ids']]);
+
+        return back()->with('success', 'ดำเนินการกับสินค้าที่เลือกแล้ว');
     }
 
     public function destroy(Product $product)
@@ -177,7 +195,8 @@ class ProductController extends Controller
         $label = $product->name;
         $product->delete();
         ActivityLogger::log('product.deleted', $product, [], $label);
-        return back()->with('success','ลบสินค้าเรียบร้อยแล้ว');
+
+        return back()->with('success', 'ลบสินค้าเรียบร้อยแล้ว');
     }
 
     public function destroyImage(ProductImage $image)
@@ -188,16 +207,20 @@ class ProductController extends Controller
         $image->delete();
         if ($wasPrimary) {
             $next = $product->images()->first();
-            if ($next) $next->update(['is_primary'=>true]);
+            if ($next) {
+                $next->update(['is_primary' => true]);
+            }
         }
-        return back()->with('success','ลบรูปสินค้าเรียบร้อยแล้ว');
+
+        return back()->with('success', 'ลบรูปสินค้าเรียบร้อยแล้ว');
     }
 
     public function setPrimaryImage(ProductImage $image)
     {
-        $image->product->images()->update(['is_primary'=>false]);
-        $image->update(['is_primary'=>true]);
-        return back()->with('success','ตั้งรูปหลักเรียบร้อยแล้ว');
+        $image->product->images()->update(['is_primary' => false]);
+        $image->update(['is_primary' => true]);
+
+        return back()->with('success', 'ตั้งรูปหลักเรียบร้อยแล้ว');
     }
 
     private function storeImages(Request $r, Product $product): void
@@ -211,11 +234,11 @@ class ProductController extends Controller
         // เพื่อให้หน้า Guest / Member / Admin ดึงรูปจริงจาก Database ไปแสดง ไม่ติดรูปตัวอย่างจาก Seeder
         $product->images()->update(['is_primary' => false]);
 
-        foreach($files as $index => $img){
+        foreach ($files as $index => $img) {
             ProductImage::create([
-                'product_id'=>$product->id,
-                'path'=>$img->store('products','public'),
-                'is_primary'=>$index === 0,
+                'product_id' => $product->id,
+                'path' => $img->store('products', 'public'),
+                'is_primary' => $index === 0,
             ]);
         }
     }
@@ -223,8 +246,8 @@ class ProductController extends Controller
     private function deleteImageFile(ProductImage $image): void
     {
         $path = (string) $image->path;
-        if ($path !== '' && !str_starts_with($path,'images/') && !str_starts_with($path,'http')) {
-            $path = str_starts_with($path,'storage/') ? substr($path, 8) : $path;
+        if ($path !== '' && ! str_starts_with($path, 'images/') && ! str_starts_with($path, 'http')) {
+            $path = str_starts_with($path, 'storage/') ? substr($path, 8) : $path;
             Storage::disk('public')->delete($path);
         }
     }
@@ -234,10 +257,13 @@ class ProductController extends Controller
         $manualSku = strtoupper(trim((string) $manualSku));
         if ($manualSku !== '') {
             $query = Product::where('sku', $manualSku);
-            if ($ignoreProductId) $query->where('id','!=',$ignoreProductId);
-            if ($query->exists()) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['sku' => 'SKU นี้ถูกใช้แล้ว กรุณาเว้นว่างให้ระบบสร้างให้อัตโนมัติ หรือใช้เลขอื่น']);
+            if ($ignoreProductId) {
+                $query->where('id', '!=', $ignoreProductId);
             }
+            if ($query->exists()) {
+                throw ValidationException::withMessages(['sku' => 'SKU นี้ถูกใช้แล้ว กรุณาเว้นว่างให้ระบบสร้างให้อัตโนมัติ หรือใช้เลขอื่น']);
+            }
+
             return $manualSku;
         }
 
@@ -272,10 +298,33 @@ class ProductController extends Controller
 
     private function uniqueSlug(string $name): string
     {
-        $base = Str::slug($name) ?: 'product-'.strtolower(substr(md5($name),0,8));
+        $base = Str::slug($name) ?: 'product-'.strtolower(substr(md5($name), 0, 8));
         $slug = $base;
         $i = 2;
-        while(Product::where('slug',$slug)->exists()) $slug = $base.'-'.$i++;
+        while (Product::where('slug', $slug)->exists()) {
+            $slug = $base.'-'.$i++;
+        }
+
         return $slug;
+    }
+
+    private function safeReturnUrl(?string $url, Request $request): ?string
+    {
+        if (! filled($url)) {
+            return null;
+        }
+
+        $parts = parse_url($url);
+        if ($parts === false || (isset($parts['scheme']) && ! in_array($parts['scheme'], ['http', 'https'], true))) {
+            return null;
+        }
+        if (isset($parts['host']) && ! hash_equals(strtolower($request->getHost()), strtolower($parts['host']))) {
+            return null;
+        }
+        if (! str_starts_with($parts['path'] ?? '', '/admin/products')) {
+            return null;
+        }
+
+        return $url;
     }
 }
