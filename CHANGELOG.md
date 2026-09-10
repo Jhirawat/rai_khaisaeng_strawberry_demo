@@ -1,4 +1,13 @@
-# CHANGELOG - Rai Khaisaeng Strawberry Prototype v29
+# CHANGELOG - Rai Khaisaeng Strawberry Prototype v30
+
+## v30 - Storefront & Member Login Refresh
+- ปรับหน้าแรกให้เป็นหน้าร้านสตรอว์เบอร์รีแบบพรีเมียม รองรับมือถือและเดสก์ท็อป
+- ปรับหน้าล็อกอินและสมัครสมาชิก พร้อมปุ่ม Google, Facebook และ LINE
+- แสดงสถานะปุ่ม Social Login ตามค่าที่ตั้งจริง ป้องกันผู้ใช้กดเข้าระบบที่ยังไม่ได้ใส่ Client ID/Secret
+- เพิ่มความปลอดภัยของ Social Login ด้วย OAuth state, ตรวจสมาชิกที่ถูกระงับ และไม่อนุญาตบัญชีแอดมิน/พนักงานล็อกอินผ่าน Social Login
+- เปลี่ยนเส้นทางหลังล็อกอินกลับไปยังหน้าที่สมาชิกตั้งใจเข้าก่อนหน้า เช่น ตะกร้าหรือชำระเงิน
+- เพิ่ม Composer lock file เพื่อให้ทุกเครื่องติดตั้ง dependency รุ่นเดียวกัน
+- เพิ่มคู่มือตั้งค่า Social Login ที่ `SOCIAL_LOGIN_SETUP_TH.md`
 
 ## v29 - Production Stable Release
 - ยกระดับจาก v28 เป็น Production Stable สำหรับใช้งานจริง/ส่งงาน

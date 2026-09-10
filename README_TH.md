@@ -1,5 +1,7 @@
 # Rai Khaisaeng Strawberry Laravel Ready 95 v22-22
 
+> คู่มือเปิดใช้ปุ่ม Google, Facebook และ LINE: [SOCIAL_LOGIN_SETUP_TH.md](SOCIAL_LOGIN_SETUP_TH.md)
+
 ## สิ่งที่ต้องติดตั้งก่อนรันโปรแกรม
 
 โปรเจกต์นี้เป็น Laravel 12 ต้องติดตั้ง/เตรียมสิ่งต่อไปนี้ก่อนรัน

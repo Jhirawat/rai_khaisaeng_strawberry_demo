@@ -48,6 +48,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ asset('css/responsive-v24.css') }}">
+    @stack('styles')
     <style>
         :root{--brand:{{$shopTheme['shop_brand']}};--brand-dark:{{$shopTheme['shop_brand_dark']}};--soft:{{$shopTheme['shop_soft']}};--green:{{$shopTheme['shop_footer']}};--green-2:{{$shopTheme['shop_footer_dark']}};--cream:{{$shopTheme['shop_cream']}};--text:{{$shopTheme['shop_text']}};--nav-text:{{$shopTheme['shop_nav_text'] ?? '#13231F'}};--shop-bg:{{$shopTheme['shop_background']}};--shop-card:{{$shopTheme['shop_card']}};--muted:#6c757d}
         body{font-family:'Prompt','Inter','Kanit','Bai Jamjuree','Roboto','Segoe UI',Tahoma,sans-serif;background:var(--shop-bg);color:var(--text)}
