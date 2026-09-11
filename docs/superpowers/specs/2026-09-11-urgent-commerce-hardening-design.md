@@ -13,11 +13,12 @@ This phase addresses the urgent findings that can corrupt stock, expose payment 
 1. Centralize order lifecycle rules and reject invalid status transitions.
 2. Expire unpaid orders atomically and return reserved stock exactly once.
 3. Keep payment approval and rejection consistent with order state inside database transactions.
-4. Store new payment slips privately and serve them only through authorized controllers.
-5. Preserve historical orders when a customer account or category is removed.
-6. Hide demo credentials outside the local environment.
-7. Add automated tests for authorization, stock, expiry, payment, deletion, and double submission.
-8. Document the local scheduler and test commands for XAMPP.
+4. Distinguish confirmed cash-on-delivery orders from unpaid transfer orders.
+5. Store new payment slips privately and serve them only through authorized controllers.
+6. Preserve historical orders when a customer account or category is removed.
+7. Hide demo credentials outside the local environment.
+8. Add automated tests for authorization, stock, expiry, payment, deletion, and double submission.
+9. Document the local scheduler and test commands for XAMPP.
 
 ## Out of Scope
 
@@ -36,6 +37,7 @@ Create a single application service responsible for allowed order transitions an
 Allowed forward transitions:
 
 - `pending_payment` to `paid` or `cancelled`
+- `confirmed` to `preparing` or `cancelled`
 - `paid` to `preparing` or `cancelled`
 - `preparing` to `packed` or `cancelled`
 - `packed` to `shipped` or `cancelled`
@@ -51,6 +53,8 @@ Shipment updates must map only to valid order transitions. They may not move a c
 
 Replace the bulk status update in `orders:expire` with per-order processing through the lifecycle service. The command selects expired `pending_payment` orders in batches, locks each order, transitions it to `cancelled`, and restores stock exactly once.
 
+Only transfer and QR orders in `pending_payment` may expire. COD orders start in `confirmed`, have no expiry timestamp, and are never selected by this command.
+
 Register the command with Laravel Scheduler. For local use, documentation will instruct the operator to run `php artisan schedule:work` in a dedicated VS Code terminal while the shop is active. Running `php artisan orders:expire` manually remains supported.
 
 ### Payment consistency
@@ -60,7 +64,7 @@ Payment review will lock both payment and order within one transaction.
 - Approval is allowed only for a pending payment attached to a non-cancelled `pending_payment` order. It marks the payment approved and transitions the order to `paid`.
 - Rejection is allowed only for a pending payment on a non-terminal order. It marks `payment_status` rejected while keeping the order in `pending_payment` until expiry or a later slip re-upload feature.
 - Repeated approval or rejection is idempotent and produces no second transition.
-- COD remains pending until an explicit later business rule is implemented; this phase will not pretend COD has been prepaid.
+- COD checkout creates a `confirmed` order with pending payment and no expiry. A delivered COD shipment marks payment approved; a returned COD shipment marks payment rejected. This keeps fulfillment and payment truth separate without pretending COD was prepaid.
 
 ### Private payment slips
 
@@ -110,6 +114,7 @@ Required feature coverage:
 - concurrent-style repeated checkout cannot create duplicate orders or overdraw stock
 - expired pending order is cancelled and stock is restored once
 - repeated expiry does not restore stock twice
+- COD order does not expire and can progress from `confirmed` to fulfillment
 - invalid order state changes are rejected
 - approving a cancelled or terminal order is rejected
 - payment approval updates payment and order atomically
