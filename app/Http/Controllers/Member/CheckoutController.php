@@ -145,11 +145,12 @@ class CheckoutController extends Controller
             }
 
             $summary = $this->orderSummary($cart, $d['province'] ?? null);
+            $isCashOnDelivery = $d['payment_method'] === 'cod';
 
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'order_number' => Order::generateOrderNumber(),
-                'status' => 'pending_payment',
+                'status' => $isCashOnDelivery ? 'confirmed' : 'pending_payment',
                 'payment_status' => 'pending',
                 'subtotal' => $summary['subtotal'],
                 'shipping_fee' => $summary['shipping'],
@@ -164,7 +165,7 @@ class CheckoutController extends Controller
                 'customer_tax_name' => $d['customer_tax_name'] ?? null,
                 'customer_tax_address' => $d['customer_tax_address'] ?: null,
                 'ordered_at' => now(),
-                'expires_at' => now()->addDay(),
+                'expires_at' => $isCashOnDelivery ? null : now()->addDay(),
             ]);
 
             foreach ($cart->items as $i) {

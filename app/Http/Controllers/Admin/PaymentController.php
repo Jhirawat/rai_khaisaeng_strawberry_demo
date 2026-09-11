@@ -1,24 +1,127 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
+
+use App\Exceptions\InvalidOrderTransition;
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use App\Models\Payment;
+use App\Services\OrderWorkflowService;
 use App\Support\ActivityLogger;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-class PaymentController extends Controller{
- public function index(){return view('admin.payments.index',['payments'=>Payment::with('order.user')->latest()->paginate(20)]);} 
- public function approve(Payment $payment){
-  if(in_array($payment->status,['approved','rejected'],true)) return back()->with('success','รายการนี้ถูกตรวจสอบแล้ว');
-  $payment->update(['status'=>'approved','verified_by'=>auth()->id(),'verified_at'=>now()]);
-  $payment->order->update(['payment_status'=>'approved','status'=>'paid']);
-  ActivityLogger::log('payment.approved', $payment, ['order'=>$payment->order->order_number ?? $payment->order_id]);
-  return back()->with('success','อนุมัติการชำระเงินแล้ว');
- }
- public function reject(Request $r,Payment $payment){
-  $d=$r->validate(['reject_reason'=>'nullable|string|max:1000']);
-  if(in_array($payment->status,['approved','rejected'],true)) return back()->with('success','รายการนี้ถูกตรวจสอบแล้ว');
-  $payment->update(['status'=>'rejected','reject_reason'=>$d['reject_reason'] ?? null,'verified_by'=>auth()->id(),'verified_at'=>now()]);
-  $payment->order->update(['payment_status'=>'rejected']);
-  ActivityLogger::log('payment.rejected', $payment, ['order'=>$payment->order->order_number ?? $payment->order_id, 'reason'=>$d['reject_reason'] ?? null]);
-  return back()->with('success','ปฏิเสธการชำระเงินแล้ว');
- }
+use Illuminate\Support\Facades\DB;
+
+class PaymentController extends Controller
+{
+    public function __construct(private readonly OrderWorkflowService $workflow) {}
+
+    public function index()
+    {
+        return view('admin.payments.index', [
+            'payments' => Payment::with('order.user')->latest()->paginate(20),
+        ]);
+    }
+
+    public function approve(Request $request, Payment $payment): RedirectResponse
+    {
+        try {
+            $result = DB::transaction(function () use ($payment, $request): array {
+                $lockedOrder = Order::query()->lockForUpdate()->findOrFail($payment->order_id);
+                $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->getKey());
+
+                if ($lockedPayment->status !== 'pending') {
+                    return ['status' => 'already_reviewed'];
+                }
+
+                if ($lockedOrder->status !== 'pending_payment') {
+                    return ['status' => 'invalid_order'];
+                }
+
+                $approvedOrder = $this->workflow->transition(
+                    $lockedOrder,
+                    'paid',
+                    $request->user(),
+                    'payment_approval',
+                );
+                $approvedOrder->forceFill(['payment_status' => 'approved'])->save();
+                $lockedPayment->forceFill([
+                    'status' => 'approved',
+                    'verified_by' => $request->user()?->getKey(),
+                    'verified_at' => now(),
+                ])->save();
+
+                return [
+                    'status' => 'reviewed',
+                    'payment' => $lockedPayment->fresh(),
+                    'order_number' => $approvedOrder->order_number,
+                ];
+            });
+        } catch (InvalidOrderTransition $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        if ($result['status'] === 'already_reviewed') {
+            return back()->with('success', 'รายการนี้ถูกตรวจสอบแล้ว');
+        }
+
+        if ($result['status'] === 'invalid_order') {
+            return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดหรือดำเนินการต่อแล้วได้');
+        }
+
+        ActivityLogger::log('payment.approved', $result['payment'], [
+            'order' => $result['order_number'],
+        ]);
+
+        return back()->with('success', 'อนุมัติการชำระเงินแล้ว');
+    }
+
+    public function reject(Request $request, Payment $payment): RedirectResponse
+    {
+        $data = $request->validate([
+            'reject_reason' => 'nullable|string|max:1000',
+        ]);
+
+        $result = DB::transaction(function () use ($data, $payment, $request): array {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($payment->order_id);
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->getKey());
+
+            if ($lockedPayment->status !== 'pending') {
+                return ['status' => 'already_reviewed'];
+            }
+
+            if (in_array($lockedOrder->status, ['delivered', 'cancelled'], true)) {
+                return ['status' => 'invalid_order'];
+            }
+
+            $lockedOrder->forceFill(['payment_status' => 'rejected'])->save();
+            $lockedPayment->forceFill([
+                'status' => 'rejected',
+                'reject_reason' => $data['reject_reason'] ?? null,
+                'verified_by' => $request->user()?->getKey(),
+                'verified_at' => now(),
+            ])->save();
+
+            return [
+                'status' => 'reviewed',
+                'payment' => $lockedPayment->fresh(),
+                'order_number' => $lockedOrder->order_number,
+            ];
+        });
+
+        if ($result['status'] === 'already_reviewed') {
+            return back()->with('success', 'รายการนี้ถูกตรวจสอบแล้ว');
+        }
+
+        if ($result['status'] === 'invalid_order') {
+            return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดแล้วได้');
+        }
+
+        ActivityLogger::log('payment.rejected', $result['payment'], [
+            'order' => $result['order_number'],
+            'reason' => $data['reject_reason'] ?? null,
+        ]);
+
+        return back()->with('success', 'ปฏิเสธการชำระเงินแล้ว');
+    }
 }
