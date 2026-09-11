@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,7 +8,7 @@ use Illuminate\Support\Str;
 class Order extends Model
 {
     protected $fillable = [
-        'user_id','order_number','status','payment_status','subtotal','shipping_fee','vat_amount','before_vat_amount','withholding_tax_amount','shipping_rule_note','total','shipping_address_snapshot','needs_tax_invoice','customer_tax_id','customer_tax_name','customer_tax_address','expires_at','ordered_at','cancelled_at','stock_returned_at'
+        'user_id', 'order_number', 'status', 'payment_status', 'subtotal', 'shipping_fee', 'vat_amount', 'before_vat_amount', 'withholding_tax_amount', 'shipping_rule_note', 'total', 'shipping_address_snapshot', 'needs_tax_invoice', 'customer_tax_id', 'customer_tax_name', 'customer_tax_address', 'expires_at', 'ordered_at', 'cancelled_at', 'stock_returned_at',
     ];
 
     protected $casts = [
@@ -23,26 +24,41 @@ class Order extends Model
         'total' => 'decimal:2',
     ];
 
-
     public static function generateOrderNumber(): string
     {
         do {
-            $number = 'MYH' . now()->format('YmdHis') . strtoupper(Str::random(6));
+            $number = 'MYH'.now()->format('YmdHis').strtoupper(Str::random(6));
         } while (self::where('order_number', $number)->exists());
 
         return $number;
     }
 
-    public function user(){ return $this->belongsTo(User::class); }
-    public function items(){ return $this->hasMany(OrderItem::class); }
-    public function payment(){ return $this->hasOne(Payment::class); }
-    public function shipment(){ return $this->hasOne(Shipment::class); }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function payment()
+    {
+        return $this->hasOne(Payment::class);
+    }
+
+    public function shipment()
+    {
+        return $this->hasOne(Shipment::class);
+    }
 
     public static function statusLabels(): array
     {
         return app()->getLocale() === 'en'
             ? [
                 'pending_payment' => 'Pending Payment',
+                'confirmed' => 'Confirmed',
                 'paid' => 'Paid',
                 'preparing' => 'Preparing',
                 'packed' => 'Packed',
@@ -53,6 +69,7 @@ class Order extends Model
             ]
             : [
                 'pending_payment' => 'รอชำระเงิน',
+                'confirmed' => 'ยืนยันแล้ว',
                 'paid' => 'ชำระเงินแล้ว',
                 'preparing' => 'เตรียมสินค้า',
                 'packed' => 'จัดเสร็จแล้ว',
@@ -94,6 +111,7 @@ class Order extends Model
     {
         return [
             'pending_payment' => 'text-bg-warning',
+            'confirmed' => 'text-bg-primary',
             'paid' => 'text-bg-success',
             'preparing' => 'text-bg-info',
             'packed' => 'text-bg-secondary',

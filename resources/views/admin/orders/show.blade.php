@@ -2,7 +2,8 @@
 @section('title','รายละเอียดคำสั่งซื้อ')
 @section('content')
 @php
-$statusLabels=['pending_payment'=>'รอชำระเงิน','paid'=>'ชำระเงินแล้ว','preparing'=>'เตรียมสินค้า','packed'=>'จัดเสร็จแล้ว','shipped'=>'กำลังจัดส่ง','delivered'=>'จัดส่งแล้ว','delivery_failed'=>'จัดส่งไม่สำเร็จ','cancelled'=>'ยกเลิก'];
+$statusLabels=\App\Models\Order::statusLabels();
+$hasStatusTargets=count($statusOptions)>1;
 $address=is_array($order->shipping_address_snapshot)?$order->shipping_address_snapshot:json_decode($order->shipping_address_snapshot ?? '[]',true);
 $canReceipt=in_array($order->status,['paid','preparing','packed','shipped','delivered']) || in_array($order->payment_status,['approved','paid']);
 @endphp
@@ -16,13 +17,13 @@ $canReceipt=in_array($order->status,['paid','preparing','packed','shipped','deli
             <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
                 <div><div class="text-muted small">สถานะปัจจุบัน</div><span class="badge {{$order->status_badge_class}} fs-6 rounded-pill px-3 py-2">{{$statusLabels[$order->status] ?? $order->status}}</span></div>
                 <form method="post" action="{{route('admin.orders.update',$order)}}" class="d-flex flex-wrap gap-2">@csrf @method('patch')
-                    <select name="status" class="form-select rounded-pill" style="min-width:230px" @disabled($order->status==='cancelled')>
-                        @foreach($statusLabels as $key=>$label)<option value="{{$key}}" @selected($order->status===$key)>{{$label}}</option>@endforeach
+                    <select name="status" class="form-select rounded-pill" style="min-width:230px" @disabled(!$hasStatusTargets)>
+                        @foreach($statusOptions as $key)<option value="{{$key}}" @selected($order->status===$key)>{{$statusLabels[$key] ?? $key}}</option>@endforeach
                     </select>
-                    <button class="btn btn-danger rounded-pill px-4" @disabled($order->status==='cancelled')>เปลี่ยนสถานะ</button>
+                    <button class="btn btn-danger rounded-pill px-4" @disabled(!$hasStatusTargets)>เปลี่ยนสถานะ</button>
                 </form>
             </div>
-            @if($order->status==='cancelled')<div class="alert alert-secondary mt-3 mb-0">ออเดอร์นี้ยกเลิกและคืนสต๊อกแล้ว จึงไม่สามารถเปิดกลับได้</div>@endif
+            @if(!$hasStatusTargets)<div class="alert alert-secondary mt-3 mb-0">สถานะนี้สิ้นสุดแล้ว จึงไม่สามารถเปลี่ยนเป็นสถานะอื่นได้</div>@endif
         </div>
         <div class="table-responsive content-card p-0 mb-3">
             <table class="table align-middle mb-0"><thead class="table-light"><tr><th>SKU</th><th>สินค้า</th><th class="text-center">จำนวน</th><th class="text-end">ราคาต่อชิ้น</th><th class="text-end">รวม</th></tr></thead><tbody>
