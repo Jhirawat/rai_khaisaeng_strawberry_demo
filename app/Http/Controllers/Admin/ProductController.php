@@ -17,6 +17,8 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
+        $perPage = (int) $request->get('per_page', 20);
+        $perPage = in_array($perPage, [20, 50, 100], true) ? $perPage : 20;
         $categories = Category::orderBy('name')->get();
         $products = Product::with('category', 'inventory', 'images')
             ->when($request->filled('search'), function ($q) use ($request) {
@@ -32,7 +34,7 @@ class ProductController extends Controller
             ->when($request->stock === 'low', fn ($q) => $q->whereHas('inventory', fn ($i) => $i->whereColumn('quantity', '<=', 'low_stock_threshold')->where('quantity', '>', 0)))
             ->when($request->stock === 'out', fn ($q) => $q->whereHas('inventory', fn ($i) => $i->where('quantity', '<=', 0)))
             ->latest()
-            ->paginate((int) $request->get('per_page', 20))
+            ->paginate($perPage)
             ->withQueryString();
 
         return view('admin.products.index', compact('products', 'categories'));

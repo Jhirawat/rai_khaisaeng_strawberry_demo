@@ -85,7 +85,7 @@ class OrderController extends Controller
             ActivityLogger::log('order.bulk_status_updated', $order, ['from' => $old, 'to' => $status], $order->order_number);
         }
 
-        return back()->with('success', 'บันทึกสถานะคำสั่งซื้อทั้งหมดเรียบร้อยแล้ว');
+        return back()->with('success', 'บันทึกสถานะคำสั่งซื้อที่แก้ไขเรียบร้อยแล้ว');
     }
 
     private function returnStockOnce(Order $order): void

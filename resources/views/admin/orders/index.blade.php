@@ -47,11 +47,11 @@ $current=request('status');
         <div class="col-lg-2"><button class="btn btn-danger rounded-pill w-100">ค้นหา</button></div>
     </form>
 </div>
-<form method="post" action="{{route('admin.orders.bulkUpdate')}}" class="preserve-scroll-form" data-scroll-key="admin-orders-scroll">
+<form method="post" action="{{route('admin.orders.bulkUpdate')}}" class="preserve-scroll-form" data-scroll-key="admin-orders-scroll" id="orderBulkForm">
 @csrf @method('patch')
 <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
-    <span class="text-muted fw-bold">เปลี่ยนสถานะ</span>
-    <button class="btn btn-danger rounded-pill px-4 fw-bold"><i class="bi bi-save"></i> บันทึกทั้งหมด</button>
+    <span class="text-muted fw-bold" id="orderDirtyStatus">ยังไม่มีรายการที่แก้ไข</span>
+    <button class="btn btn-danger rounded-pill px-4 fw-bold" id="saveOrderChanges" disabled><i class="bi bi-save"></i> บันทึกรายการที่แก้</button>
 </div>
 <div class="table-responsive content-card p-0">
 <table class="table table-hover align-middle mb-0 order-table">
@@ -67,7 +67,7 @@ $current=request('status');
     <td class="text-nowrap">{{$o->shipment->tracking_number ? 'Tracking: '.$o->shipment->tracking_number : '-'}}</td>
     <td class="text-nowrap"><span class="badge bg-{{$statusClass[$o->status] ?? 'secondary'}}">{{$statusLabels[$o->status] ?? $o->status}}</span></td>
     <td class="text-nowrap">
-        <select name="statuses[{{$o->id}}]" class="form-select form-select-sm rounded-pill order-status-select">
+        <select name="statuses[{{$o->id}}]" class="form-select form-select-sm rounded-pill order-status-select" data-original="{{$o->status}}" disabled>
             @foreach($statusLabels as $key=>$label)<option value="{{$key}}" @selected($o->status===$key)>{{$label}}</option>@endforeach
         </select>
     </td>
@@ -89,9 +89,20 @@ $current=request('status');
   const key='admin-orders-scroll';
   const saved=sessionStorage.getItem(key);
   if(saved){ setTimeout(()=>{window.scrollTo(0, parseInt(saved,10)||0); sessionStorage.removeItem(key);}, 80); }
-  document.querySelectorAll('.preserve-scroll-form').forEach(form=>{
+document.querySelectorAll('.preserve-scroll-form').forEach(form=>{
     form.addEventListener('submit',()=>sessionStorage.setItem(form.dataset.scrollKey||key, String(window.scrollY)));
   });
 })();
+const orderSelects=[...document.querySelectorAll('.order-status-select')];
+const saveOrderChanges=document.getElementById('saveOrderChanges');
+const orderDirtyStatus=document.getElementById('orderDirtyStatus');
+function syncOrderChanges(){
+    const changed=orderSelects.filter(select=>select.value!==select.dataset.original);
+    orderSelects.forEach(select=>select.disabled=select.value===select.dataset.original);
+    saveOrderChanges.disabled=changed.length===0;
+    orderDirtyStatus.textContent=changed.length ? `แก้ไขแล้ว ${changed.length} รายการ` : 'ยังไม่มีรายการที่แก้ไข';
+}
+orderSelects.forEach(select=>select.addEventListener('change',syncOrderChanges));
+document.getElementById('orderBulkForm')?.addEventListener('submit',event=>{if(saveOrderChanges.disabled) event.preventDefault();});
 </script>
 @endsection
