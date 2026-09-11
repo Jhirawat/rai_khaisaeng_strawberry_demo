@@ -43,14 +43,15 @@ class ShippingController extends Controller
                     $request->user(),
                     'shipping_update',
                 );
+                $shipmentStatusChanged = $lockedShipment->status !== $data['status'];
 
                 $lockedShipment->fill($data);
 
-                if ($data['status'] === 'shipped') {
+                if ($shipmentStatusChanged && $data['status'] === 'shipped') {
                     $lockedShipment->shipped_at = now();
                 }
 
-                if ($data['status'] === 'delivered') {
+                if ($shipmentStatusChanged && $data['status'] === 'delivered') {
                     $lockedShipment->delivered_at = now();
                 }
 

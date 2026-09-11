@@ -111,6 +111,75 @@ class ShippingWorkflowTest extends TestCase
         $this->assertNotNull($payment->fresh()->verified_at);
     }
 
+    public function test_same_state_shipped_metadata_edit_preserves_the_original_shipped_time(): void
+    {
+        $admin = $this->createAdmin();
+        $order = $this->createOrder('shipped');
+        $shipment = $this->createShipment($order, 'shipped');
+        $originalShippedAt = $shipment->fresh()->shipped_at;
+
+        $response = $this->actingAs($admin)->patch(route('admin.shipping.update', $shipment), [
+            'carrier' => 'Updated Carrier',
+            'tracking_number' => 'UPDATED-TRACKING',
+            'status' => 'shipped',
+        ]);
+
+        $response->assertRedirect()->assertSessionHas('success');
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->assertSame('Updated Carrier', $shipment->fresh()->carrier);
+        $this->assertSame('UPDATED-TRACKING', $shipment->fresh()->tracking_number);
+        $this->assertTrue($originalShippedAt->equalTo($shipment->fresh()->shipped_at));
+        $this->assertDatabaseCount('activity_logs', 0);
+    }
+
+    public function test_same_state_delivered_metadata_edit_preserves_all_shipping_times(): void
+    {
+        $admin = $this->createAdmin();
+        $order = $this->createOrder('delivered');
+        $shipment = $this->createShipment($order, 'delivered');
+        $originalShippedAt = now()->subDays(3);
+        $originalDeliveredAt = now()->subDays(2);
+        $shipment->forceFill([
+            'shipped_at' => $originalShippedAt,
+            'delivered_at' => $originalDeliveredAt,
+        ])->save();
+        $shipment->refresh();
+        $originalShippedAt = $shipment->shipped_at;
+        $originalDeliveredAt = $shipment->delivered_at;
+
+        $response = $this->actingAs($admin)->patch(route('admin.shipping.update', $shipment), [
+            'carrier' => 'Updated Carrier',
+            'tracking_number' => 'UPDATED-DELIVERED',
+            'status' => 'delivered',
+        ]);
+
+        $response->assertRedirect()->assertSessionHas('success');
+        $this->assertSame('delivered', $order->fresh()->status);
+        $this->assertTrue($originalShippedAt->equalTo($shipment->fresh()->shipped_at));
+        $this->assertTrue($originalDeliveredAt->equalTo($shipment->fresh()->delivered_at));
+        $this->assertDatabaseCount('activity_logs', 0);
+    }
+
+    public function test_reshipping_a_returned_shipment_records_a_new_shipped_time(): void
+    {
+        $admin = $this->createAdmin();
+        $order = $this->createOrder('delivery_failed');
+        $shipment = $this->createShipment($order, 'returned');
+        $originalShippedAt = now()->subDays(2);
+        $shipment->forceFill(['shipped_at' => $originalShippedAt])->save();
+
+        $response = $this->actingAs($admin)->patch(route('admin.shipping.update', $shipment), [
+            'carrier' => 'Retry Carrier',
+            'tracking_number' => 'RETRY-TRACKING',
+            'status' => 'shipped',
+        ]);
+
+        $response->assertRedirect()->assertSessionHas('success');
+        $this->assertSame('shipped', $order->fresh()->status);
+        $this->assertSame('shipped', $shipment->fresh()->status);
+        $this->assertTrue($shipment->fresh()->shipped_at->greaterThan($originalShippedAt));
+    }
+
     public static function ordersThatCannotBeShipped(): array
     {
         return [
