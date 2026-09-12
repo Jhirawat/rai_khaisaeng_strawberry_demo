@@ -10,12 +10,14 @@ use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\Shipment;
 use App\Models\ThaiDistrict;
 use App\Models\ThaiProvince;
 use App\Models\ThaiSubdistrict;
 use App\Models\User;
 use App\Services\OrderWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -218,18 +220,32 @@ class PaymentWorkflowTest extends TestCase
         $this->assertDatabaseCount('activity_logs', 0);
     }
 
-    public function test_staff_can_review_a_pending_payment(): void
-    {
+    #[DataProvider('allowedStaffPaymentReviews')]
+    public function test_staff_can_review_a_pending_payment(
+        string $action,
+        string $method,
+        string $expectedStatus,
+    ): void {
         $staff = $this->createUser('staff');
-        $payment = $this->createPayment($this->createOrder());
+        $payment = $this->createPayment($this->createOrder(), 'pending', $method);
 
         $this->actingAs($staff)
             ->from(route('admin.payments.index'))
-            ->post(route('admin.payments.approve', $payment))
+            ->post(route("admin.payments.{$action}", $payment), [
+                'reject_reason' => 'staff-reviewed rejection',
+            ])
             ->assertRedirect(route('admin.payments.index'))
             ->assertSessionHas('success');
 
-        $this->assertSame('approved', $payment->fresh()->status);
+        $this->assertSame($expectedStatus, $payment->fresh()->status);
+    }
+
+    public static function allowedStaffPaymentReviews(): array
+    {
+        return [
+            'staff approves bank transfer' => ['approve', 'bank_transfer', 'approved'],
+            'staff rejects QR payment' => ['reject', 'qr', 'rejected'],
+        ];
     }
 
     #[DataProvider('paymentReviewActions')]
@@ -255,6 +271,158 @@ class PaymentWorkflowTest extends TestCase
             'approve route' => ['approve'],
             'reject route' => ['reject'],
         ];
+    }
+
+    #[DataProvider('codManualReviewAttempts')]
+    public function test_cod_payments_cannot_be_manually_reviewed_without_mutation(
+        string $orderStatus,
+        string $action,
+    ): void {
+        $admin = $this->createUser('admin');
+        $order = $this->createOrder($orderStatus);
+        $payment = $this->createPayment($order, 'pending', 'cod');
+        $originalOrder = $order->fresh()->getRawOriginal();
+        $originalPayment = $payment->fresh()->getRawOriginal();
+
+        $this->actingAs($admin)
+            ->from(route('admin.payments.index'))
+            ->post(route("admin.payments.{$action}", $payment), [
+                'reject_reason' => 'manual COD review must be ignored',
+            ])
+            ->assertRedirect(route('admin.payments.index'))
+            ->assertSessionHas('error');
+
+        $this->assertSame($originalOrder, $order->fresh()->getRawOriginal());
+        $this->assertSame($originalPayment, $payment->fresh()->getRawOriginal());
+        $this->assertDatabaseCount('activity_logs', 0);
+    }
+
+    public static function codManualReviewAttempts(): array
+    {
+        return [
+            'approve COD awaiting payment' => ['pending_payment', 'approve'],
+            'reject COD awaiting payment' => ['pending_payment', 'reject'],
+            'approve confirmed COD' => ['confirmed', 'approve'],
+            'reject confirmed COD' => ['confirmed', 'reject'],
+            'approve shipped COD' => ['shipped', 'approve'],
+            'reject shipped COD' => ['shipped', 'reject'],
+        ];
+    }
+
+    #[DataProvider('codShippingSettlements')]
+    public function test_shipping_settlement_remains_authoritative_after_cod_manual_review_is_refused(
+        string $reviewAction,
+        string $shipmentStatus,
+        string $expectedPaymentStatus,
+        string $expectedOrderStatus,
+    ): void {
+        $admin = $this->createUser('admin');
+        $order = $this->createOrder('shipped');
+        $shipment = Shipment::create([
+            'order_id' => $order->id,
+            'status' => 'shipped',
+            'shipped_at' => now()->subDay(),
+        ]);
+        $payment = $this->createPayment($order, 'pending', 'cod');
+
+        $this->actingAs($admin)
+            ->from(route('admin.payments.index'))
+            ->post(route("admin.payments.{$reviewAction}", $payment), [
+                'reject_reason' => 'manual COD review must be ignored',
+            ])
+            ->assertRedirect(route('admin.payments.index'))
+            ->assertSessionHas('error');
+
+        $this->assertSame('pending', $payment->fresh()->status);
+        $this->assertSame('pending', $order->fresh()->payment_status);
+        $this->assertDatabaseMissing('activity_logs', [
+            'action' => "payment.{$expectedPaymentStatus}",
+            'subject_type' => Payment::class,
+            'subject_id' => $payment->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.shipping.update', $shipment), [
+                'status' => $shipmentStatus,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame($expectedOrderStatus, $order->fresh()->status);
+        $this->assertSame($expectedPaymentStatus, $order->fresh()->payment_status);
+        $this->assertSame($expectedPaymentStatus, $payment->fresh()->status);
+        $this->assertSame($admin->id, $payment->fresh()->verified_by);
+        $this->assertNotNull($payment->fresh()->verified_at);
+    }
+
+    public static function codShippingSettlements(): array
+    {
+        return [
+            'delivery approves after rejected manual review' => ['reject', 'delivered', 'approved', 'delivered'],
+            'return rejects after approved manual review' => ['approve', 'returned', 'rejected', 'delivery_failed'],
+        ];
+    }
+
+    public function test_cod_payments_do_not_render_manual_review_controls(): void
+    {
+        $admin = $this->createUser('admin');
+        $transferPayment = $this->createPayment($this->createOrder());
+        $codPayment = $this->createPayment($this->createOrder('confirmed'), 'pending', 'cod');
+
+        $response = $this->actingAs($admin)->get(route('admin.payments.index'));
+
+        $response->assertOk();
+        $response->assertSee(route('admin.payments.approve', $transferPayment), false);
+        $response->assertSee(route('admin.payments.reject', $transferPayment), false);
+        $response->assertDontSee(route('admin.payments.approve', $codPayment), false);
+        $response->assertDontSee(route('admin.payments.reject', $codPayment), false);
+    }
+
+    #[DataProvider('paymentReviewActions')]
+    public function test_review_refuses_a_payment_whose_locked_order_association_changed(string $action): void
+    {
+        $admin = $this->createUser('admin');
+        $routeOrder = $this->createOrder();
+        $newOrder = $this->createOrder();
+        $payment = $this->createPayment($routeOrder);
+        $associationChanged = false;
+        $eventName = 'eloquent.retrieved: '.Order::class;
+
+        Event::listen($eventName, function (Order $retrievedOrder) use (
+            &$associationChanged,
+            $newOrder,
+            $payment,
+            $routeOrder,
+        ): void {
+            if (! $associationChanged && $retrievedOrder->is($routeOrder)) {
+                DB::table('payments')
+                    ->where('id', $payment->id)
+                    ->update(['order_id' => $newOrder->id]);
+                $associationChanged = true;
+            }
+        });
+
+        try {
+            $response = $this->actingAs($admin)
+                ->from(route('admin.payments.index'))
+                ->post(route("admin.payments.{$action}", $payment), [
+                    'reject_reason' => 'must not touch either order',
+                ]);
+        } finally {
+            Event::forget($eventName);
+        }
+
+        $this->assertTrue($associationChanged);
+        $response->assertRedirect(route('admin.payments.index'))->assertSessionHas('error');
+        $this->assertSame('pending_payment', $routeOrder->fresh()->status);
+        $this->assertSame('pending', $routeOrder->fresh()->payment_status);
+        $this->assertSame('pending_payment', $newOrder->fresh()->status);
+        $this->assertSame('pending', $newOrder->fresh()->payment_status);
+        $this->assertSame($newOrder->id, $payment->fresh()->order_id);
+        $this->assertSame('pending', $payment->fresh()->status);
+        $this->assertNull($payment->fresh()->verified_by);
+        $this->assertNull($payment->fresh()->verified_at);
+        $this->assertDatabaseCount('activity_logs', 0);
     }
 
     public function test_cod_checkout_confirms_the_order_without_expiry_and_preserves_totals_and_stock(): void
@@ -374,11 +542,14 @@ class PaymentWorkflowTest extends TestCase
         ]);
     }
 
-    private function createPayment(Order $order, string $status = 'pending'): Payment
-    {
+    private function createPayment(
+        Order $order,
+        string $status = 'pending',
+        string $method = 'bank_transfer',
+    ): Payment {
         return Payment::create([
             'order_id' => $order->id,
-            'method' => 'bank_transfer',
+            'method' => $method,
             'amount' => $order->total,
             'slip_path' => 'slips/test-payment.jpg',
             'status' => $status,

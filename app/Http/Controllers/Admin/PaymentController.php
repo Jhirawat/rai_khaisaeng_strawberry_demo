@@ -30,6 +30,14 @@ class PaymentController extends Controller
                 $lockedOrder = Order::query()->lockForUpdate()->findOrFail($payment->order_id);
                 $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->getKey());
 
+                if ((int) $lockedPayment->order_id !== (int) $lockedOrder->getKey()) {
+                    return ['status' => 'mismatched_order'];
+                }
+
+                if (! in_array($lockedPayment->method, ['bank_transfer', 'qr'], true)) {
+                    return ['status' => 'invalid_method'];
+                }
+
                 if ($lockedPayment->status !== 'pending') {
                     return ['status' => 'already_reviewed'];
                 }
@@ -65,6 +73,14 @@ class PaymentController extends Controller
             return back()->with('success', 'รายการนี้ถูกตรวจสอบแล้ว');
         }
 
+        if ($result['status'] === 'mismatched_order') {
+            return back()->with('error', 'ข้อมูลการชำระเงินไม่ตรงกับคำสั่งซื้อ กรุณาลองใหม่');
+        }
+
+        if ($result['status'] === 'invalid_method') {
+            return back()->with('error', 'การชำระเงินปลายทางต้องยืนยันผ่านสถานะการจัดส่ง');
+        }
+
         if ($result['status'] === 'invalid_order') {
             return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดหรือดำเนินการต่อแล้วได้');
         }
@@ -86,11 +102,19 @@ class PaymentController extends Controller
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($payment->order_id);
             $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->getKey());
 
+            if ((int) $lockedPayment->order_id !== (int) $lockedOrder->getKey()) {
+                return ['status' => 'mismatched_order'];
+            }
+
+            if (! in_array($lockedPayment->method, ['bank_transfer', 'qr'], true)) {
+                return ['status' => 'invalid_method'];
+            }
+
             if ($lockedPayment->status !== 'pending') {
                 return ['status' => 'already_reviewed'];
             }
 
-            if (in_array($lockedOrder->status, ['delivered', 'cancelled'], true)) {
+            if ($lockedOrder->status !== 'pending_payment') {
                 return ['status' => 'invalid_order'];
             }
 
@@ -113,8 +137,16 @@ class PaymentController extends Controller
             return back()->with('success', 'รายการนี้ถูกตรวจสอบแล้ว');
         }
 
+        if ($result['status'] === 'mismatched_order') {
+            return back()->with('error', 'ข้อมูลการชำระเงินไม่ตรงกับคำสั่งซื้อ กรุณาลองใหม่');
+        }
+
+        if ($result['status'] === 'invalid_method') {
+            return back()->with('error', 'การชำระเงินปลายทางต้องยืนยันผ่านสถานะการจัดส่ง');
+        }
+
         if ($result['status'] === 'invalid_order') {
-            return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดแล้วได้');
+            return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดหรือดำเนินการต่อแล้วได้');
         }
 
         ActivityLogger::log('payment.rejected', $result['payment'], [
