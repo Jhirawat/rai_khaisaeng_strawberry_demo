@@ -14,9 +14,11 @@ use App\Models\ThaiProvince;
 use App\Models\ThaiSubdistrict;
 use App\Models\User;
 use App\Services\SlipOcrService;
+use Illuminate\Database\Events\TransactionCommitting;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -375,8 +377,8 @@ class PaymentSlipAccessTest extends TestCase
             ->assertExitCode(1);
 
         $payment->refresh();
-        $this->assertSame('public', $payment->slip_disk);
-        $this->assertSame('slips/delete-retry.png', $payment->slip_path);
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertSame($privatePath, $payment->slip_path);
         Storage::disk('public')->assertExists('slips/delete-retry.png');
         Storage::disk('local')->assertExists($privatePath);
 
@@ -388,6 +390,80 @@ class PaymentSlipAccessTest extends TestCase
         $this->assertSame('local', $payment->slip_disk);
         $this->assertSame($privatePath, $payment->slip_path);
         Storage::disk('public')->assertMissing('slips/delete-retry.png');
+        Storage::disk('local')->assertExists($privatePath);
+    }
+
+    public function test_slip_migration_reconciles_a_committed_local_row_with_a_lingering_public_copy(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $contents = $this->pngBytes();
+        $privatePath = 'payment_slips/restart-recovery.png';
+        $payment = $this->createPayment($privatePath, 'local');
+        Storage::disk('local')->put($privatePath, $contents);
+        Storage::disk('public')->put('slips/restart-recovery.png', $contents);
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(0);
+
+        $payment->refresh();
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertSame($privatePath, $payment->slip_path);
+        Storage::disk('local')->assertExists($privatePath);
+        Storage::disk('public')->assertMissing('slips/restart-recovery.png');
+    }
+
+    public function test_slip_migration_keeps_the_public_source_until_the_metadata_commit_succeeds(): void
+    {
+        DB::rollBack();
+        Storage::fake('public');
+        Storage::fake('local');
+        $contents = $this->pngBytes();
+        $payment = $this->createPayment('slips/commit-failure.png', 'public');
+        $privatePath = 'payment_slips/commit-failure.png';
+        Storage::disk('public')->put($payment->slip_path, $contents);
+        $failNextCommit = true;
+        Event::listen(TransactionCommitting::class, function () use (&$failNextCommit): void {
+            if ($failNextCommit) {
+                $failNextCommit = false;
+
+                throw new RuntimeException('Controlled payment slip metadata commit failure.');
+            }
+        });
+
+        try {
+            $this->artisan('payments:migrate-slips-private')
+                ->expectsOutput("Payment {$payment->id}: migration failed.")
+                ->doesntExpectOutputToContain("Migrated payment {$payment->id}:")
+                ->assertExitCode(1);
+        } finally {
+            Event::forget(TransactionCommitting::class);
+            $pdo = DB::connection()->getPdo();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+
+        $payment->refresh();
+        $this->assertSame('public', $payment->slip_disk);
+        $this->assertSame('slips/commit-failure.png', $payment->slip_path);
+        Storage::disk('public')->assertExists('slips/commit-failure.png');
+        Storage::disk('local')->assertExists($privatePath);
+
+        $response = $this->actingAs($this->createUser('admin'))
+            ->get($this->slipUrl($payment));
+        $response->assertOk();
+        $this->assertSame($contents, $response->streamedContent());
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(0);
+
+        $payment->refresh();
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertSame($privatePath, $payment->slip_path);
+        Storage::disk('public')->assertMissing('slips/commit-failure.png');
         Storage::disk('local')->assertExists($privatePath);
     }
 
