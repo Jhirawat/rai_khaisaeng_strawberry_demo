@@ -11,7 +11,7 @@
         <td>{{$p->order->user->name ?? '-'}}</td>
         <td><span class="badge bg-info">{{['qr'=>'QR Code','bank_transfer'=>'โอนธนาคาร','cod'=>'เก็บเงินปลายทาง'][$p->method] ?? $p->method}}</span></td>
         <td class="fw-bold text-danger">฿{{number_format($p->amount,2)}}</td>
-        <td>@if($p->slip_path)<a target="_blank" href="{{asset('storage/'.$p->slip_path)}}"><img src="{{asset('storage/'.$p->slip_path)}}" style="width:80px;height:80px;object-fit:cover" class="rounded border"></a>@else<span class="text-muted">ไม่มีสลิป</span>@endif</td>
+        <td>@if($p->slip_path)<a target="_blank" rel="noopener noreferrer" href="{{route('admin.payments.slip',$p)}}"><img src="{{route('admin.payments.slip',$p)}}" style="width:80px;height:80px;object-fit:cover" class="rounded border"></a>@else<span class="text-muted">ไม่มีสลิป</span>@endif</td>
         <td>
             @php($ocrStatus = $p->slip_review_status ?? 'needs_review')
             @if($ocrStatus === 'verified_by_qr')

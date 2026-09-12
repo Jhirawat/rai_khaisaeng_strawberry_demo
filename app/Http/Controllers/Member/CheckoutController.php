@@ -189,12 +189,13 @@ class CheckoutController extends Controller
                 ]);
             }
 
-            $slip = $r->file('slip') ? $r->file('slip')->store('payment_slips', 'public') : null;
+            $slip = $r->file('slip') ? $r->file('slip')->store('payment_slips', 'local') : null;
             Payment::create([
                 'order_id' => $order->id,
                 'method' => $d['payment_method'],
                 'amount' => $order->total,
                 'slip_path' => $slip,
+                'slip_disk' => $slip ? 'local' : null,
                 'status' => 'pending',
                 'slip_review_status' => $slipAnalysis['status'] ?? ($slip ? 'needs_review' : 'not_required'),
                 'slip_ocr_score' => $slipAnalysis['score'] ?? 0,

@@ -11,6 +11,8 @@ use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PaymentController extends Controller
 {
@@ -21,6 +23,37 @@ class PaymentController extends Controller
         return view('admin.payments.index', [
             'payments' => Payment::with('order.user')->latest()->paginate(20),
         ]);
+    }
+
+    public function slip(Payment $payment): StreamedResponse
+    {
+        $diskName = $payment->slip_disk;
+        $path = $payment->slip_path;
+
+        abort_unless(
+            is_string($diskName)
+                && is_string($path)
+                && $this->isAllowedSlipLocation($diskName, $path),
+            404,
+        );
+
+        $disk = Storage::disk($diskName);
+        abort_unless($disk->exists($path), 404);
+
+        $mimeType = $disk->mimeType($path);
+        $extension = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/svg+xml' => 'svg',
+        ][$mimeType] ?? null;
+        abort_unless($extension !== null, 404);
+
+        return $disk->response($path, "payment-slip.{$extension}", [
+            'Content-Type' => $mimeType,
+            'Cache-Control' => 'private, no-store',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'X-Content-Type-Options' => 'nosniff',
+        ], 'inline');
     }
 
     public function approve(Request $request, Payment $payment): RedirectResponse
@@ -155,5 +188,27 @@ class PaymentController extends Controller
         ]);
 
         return back()->with('success', 'ปฏิเสธการชำระเงินแล้ว');
+    }
+
+    private function isAllowedSlipLocation(string $disk, string $path): bool
+    {
+        $isSafeRelativePath = $path !== ''
+            && ! str_contains($path, "\0")
+            && ! str_contains($path, '\\')
+            && ! str_contains($path, '//')
+            && ! str_starts_with($path, '/')
+            && ! str_ends_with($path, '/')
+            && preg_match('/^[A-Za-z]:/', $path) !== 1
+            && preg_match('#(^|/)\.\.?(/|$)#', $path) !== 1;
+
+        if (! $isSafeRelativePath) {
+            return false;
+        }
+
+        return match ($disk) {
+            'local' => str_starts_with($path, 'payment_slips/'),
+            'public' => str_starts_with($path, 'payment_slips/') || str_starts_with($path, 'slips/'),
+            default => false,
+        };
     }
 }

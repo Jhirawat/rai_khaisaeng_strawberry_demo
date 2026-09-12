@@ -1,0 +1,410 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Cart;
+use App\Models\CartItem;
+use App\Models\Category;
+use App\Models\Inventory;
+use App\Models\Order;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\ThaiDistrict;
+use App\Models\ThaiProvince;
+use App\Models\ThaiSubdistrict;
+use App\Models\User;
+use App\Services\SlipOcrService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
+use Tests\TestCase;
+
+class PaymentSlipAccessTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_checkout_stores_new_payment_slips_on_the_private_local_disk(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $member = $this->createCheckoutCart();
+        $this->app->instance(SlipOcrService::class, new class extends SlipOcrService
+        {
+            public function analyze(string $absolutePath, ?float $expectedAmount = null): array
+            {
+                return [
+                    'status' => 'needs_review',
+                    'score' => 0,
+                    'text' => '',
+                    'note' => 'Test slip requires review.',
+                ];
+            }
+        });
+
+        $response = $this->actingAs($member)->post(route('member.checkout.store'), [
+            'recipient_name' => 'Private Slip Customer',
+            'phone' => '0812345678',
+            'address' => '1 Test Road',
+            'province' => 'Chiang Mai',
+            'district' => 'Mueang Chiang Mai',
+            'subdistrict' => 'Si Phum',
+            'postal_code' => '50200',
+            'payment_method' => 'bank_transfer',
+            'slip' => UploadedFile::fake()->createWithContent(
+                'payment-slip.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true),
+            ),
+            'needs_tax_invoice' => false,
+            'customer_tax_id' => null,
+            'customer_tax_name' => null,
+            'customer_tax_address' => null,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirectContains('/member/orders/');
+        $payment = Payment::query()->sole();
+        $response->assertRedirect(route('member.orders.show', $payment->order));
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertStringStartsWith('payment_slips/', $payment->slip_path);
+        Storage::disk('local')->assertExists($payment->slip_path);
+        Storage::disk('public')->assertMissing($payment->slip_path);
+    }
+
+    #[DataProvider('operationalRoles')]
+    public function test_operational_roles_can_view_a_private_slip_inline(string $role): void
+    {
+        Storage::fake('local');
+        $contents = $this->pngBytes();
+        Storage::disk('local')->put('payment_slips/private.png', $contents);
+        $payment = $this->createPayment('payment_slips/private.png', 'local');
+
+        $response = $this->actingAs($this->createUser($role))
+            ->get($this->slipUrl($payment));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'image/png');
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $this->assertStringStartsWith('inline;', (string) $response->headers->get('Content-Disposition'));
+        $this->assertSame($contents, $response->streamedContent());
+    }
+
+    public static function operationalRoles(): array
+    {
+        return [
+            'staff' => ['staff'],
+            'admin' => ['admin'],
+            'super admin' => ['super_admin'],
+        ];
+    }
+
+    public function test_members_cannot_view_payment_slips(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('payment_slips/private.png', $this->pngBytes());
+        $payment = $this->createPayment('payment_slips/private.png', 'local');
+
+        $this->actingAs($this->createUser('member'))
+            ->get($this->slipUrl($payment))
+            ->assertForbidden();
+    }
+
+    public function test_missing_private_slip_returns_not_found_without_exposing_its_path(): void
+    {
+        Storage::fake('local');
+        $payment = $this->createPayment('payment_slips/missing-sensitive-file.png', 'local');
+
+        $response = $this->actingAs($this->createUser('staff'))
+            ->get($this->slipUrl($payment));
+
+        $response->assertNotFound();
+        $response->assertDontSee('missing-sensitive-file.png');
+    }
+
+    public function test_legacy_public_slips_are_delivered_through_the_authorized_route(): void
+    {
+        Storage::fake('public');
+        $contents = $this->pngBytes();
+        Storage::disk('public')->put('slips/legacy.png', $contents);
+        $payment = $this->createPayment('slips/legacy.png', 'public');
+
+        $response = $this->actingAs($this->createUser('admin'))
+            ->get($this->slipUrl($payment));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'image/png');
+        $this->assertSame($contents, $response->streamedContent());
+    }
+
+    #[DataProvider('unsafeSlipLocations')]
+    public function test_unsafe_slip_locations_are_not_read(string $path, ?string $disk): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        if (in_array($disk, ['local', 'public'], true)
+            && in_array($path, ['slips/private.png', 'receipts/private.png'], true)) {
+            Storage::disk($disk)->put($path, $this->pngBytes());
+        }
+        $payment = $this->createPayment($path, $disk);
+
+        $this->actingAs($this->createUser('admin'))
+            ->get($this->slipUrl($payment))
+            ->assertNotFound();
+    }
+
+    public static function unsafeSlipLocations(): array
+    {
+        return [
+            'path traversal' => ['../private/.env', 'local'],
+            'absolute path' => ['C:\\sensitive\\slip.png', 'local'],
+            'unapproved disk' => ['payment_slips/private.png', 's3'],
+            'missing disk metadata' => ['payment_slips/private.png', null],
+            'legacy root on private disk' => ['slips/private.png', 'local'],
+            'unapproved public root' => ['receipts/private.png', 'public'],
+        ];
+    }
+
+    public function test_admin_payment_views_only_emit_the_authorized_slip_route(): void
+    {
+        $admin = $this->createUser('admin');
+        $payment = $this->createPayment('slips/legacy.png', 'public');
+        $protectedUrl = $this->slipUrl($payment);
+        $directPublicUrl = asset('storage/slips/legacy.png');
+
+        $index = $this->actingAs($admin)->get(route('admin.payments.index'));
+        $index->assertOk();
+        $index->assertSee($protectedUrl, false);
+        $index->assertDontSee($directPublicUrl, false);
+
+        $order = $this->actingAs($admin)->get(route('admin.orders.show', $payment->order));
+        $order->assertOk();
+        $order->assertSee($protectedUrl, false);
+        $order->assertDontSee($directPublicUrl, false);
+    }
+
+    public function test_slip_migration_dry_run_reports_without_mutating_files_or_database(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $contents = $this->pngBytes();
+        $payment = $this->createPayment('slips/legacy.png', 'public');
+        Storage::disk('public')->put($payment->slip_path, $contents);
+
+        $this->artisan('payments:migrate-slips-private', ['--dry-run' => true])
+            ->expectsOutputToContain("Would migrate payment {$payment->id}")
+            ->expectsOutput('Would migrate 1 payment slips; skipped 0; 0 failed.')
+            ->assertExitCode(0);
+
+        $this->assertSame('public', $payment->fresh()->slip_disk);
+        Storage::disk('public')->assertExists($payment->slip_path);
+        Storage::disk('local')->assertMissing('payment_slips/legacy.png');
+    }
+
+    public function test_slip_migration_moves_and_verifies_a_public_file_idempotently(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $contents = $this->pngBytes();
+        $payment = $this->createPayment('slips/legacy.png', 'public');
+        $privatePath = 'payment_slips/legacy.png';
+        Storage::disk('public')->put($payment->slip_path, $contents);
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutputToContain("Migrated payment {$payment->id}")
+            ->assertExitCode(0);
+
+        $this->assertSame('local', $payment->fresh()->slip_disk);
+        $this->assertSame($privatePath, $payment->fresh()->slip_path);
+        Storage::disk('local')->assertExists($privatePath);
+        Storage::disk('public')->assertMissing('slips/legacy.png');
+        $this->assertSame($contents, Storage::disk('local')->get($privatePath));
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput('Migrated 0 payment slips; skipped 0; 0 failed.')
+            ->assertExitCode(0);
+        Storage::disk('local')->assertExists($privatePath);
+    }
+
+    public function test_slip_migration_skips_demo_and_non_public_records(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $demo = $this->createPayment('slips/demo-slip-qr-valid.svg', 'public');
+        $alreadyPrivate = $this->createPayment('payment_slips/already-private.png', 'local');
+        Storage::disk('public')->put($demo->slip_path, '<svg></svg>');
+        Storage::disk('local')->put($alreadyPrivate->slip_path, $this->pngBytes());
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput('Migrated 0 payment slips; skipped 1; 0 failed.')
+            ->assertExitCode(0);
+
+        $this->assertSame('public', $demo->fresh()->slip_disk);
+        $this->assertSame('local', $alreadyPrivate->fresh()->slip_disk);
+        Storage::disk('public')->assertExists($demo->slip_path);
+        Storage::disk('local')->assertExists($alreadyPrivate->slip_path);
+    }
+
+    public function test_slip_migration_leaves_a_missing_source_record_unchanged(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $payment = $this->createPayment('payment_slips/missing.png', 'public');
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput("Payment {$payment->id}: source file is missing.")
+            ->assertExitCode(1);
+
+        $this->assertSame('public', $payment->fresh()->slip_disk);
+        Storage::disk('local')->assertMissing($payment->slip_path);
+    }
+
+    #[DataProvider('unsafeMigrationPaths')]
+    public function test_slip_migration_rejects_unsafe_paths_without_touching_storage(
+        string $path,
+        bool $createSource,
+    ): void {
+        Storage::fake('public');
+        Storage::fake('local');
+        $payment = $this->createPayment($path, 'public');
+        if ($createSource) {
+            Storage::disk('public')->put($path, $this->pngBytes());
+        }
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput("Payment {$payment->id}: unsafe slip path; skipped.")
+            ->assertExitCode(1);
+
+        $this->assertSame('public', $payment->fresh()->slip_disk);
+        Storage::disk('local')->assertMissing('payment_slips/unsafe.png');
+    }
+
+    public static function unsafeMigrationPaths(): array
+    {
+        return [
+            'path traversal' => ['../payment_slips/unsafe.png', false],
+            'unapproved source root' => ['receipts/unsafe.png', true],
+        ];
+    }
+
+    public function test_slip_migration_keeps_the_public_source_when_database_update_fails(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $payment = $this->createPayment('payment_slips/update-failure.png', 'public');
+        Storage::disk('public')->put($payment->slip_path, $this->pngBytes());
+        $eventName = 'eloquent.updating: '.Payment::class;
+        Event::listen($eventName, function (Payment $updating) use ($payment): void {
+            if ($updating->is($payment)) {
+                throw new RuntimeException('Controlled slip metadata update failure.');
+            }
+        });
+
+        try {
+            $this->artisan('payments:migrate-slips-private')
+                ->expectsOutput("Payment {$payment->id}: migration failed.")
+                ->assertExitCode(1);
+        } finally {
+            Event::forget($eventName);
+        }
+
+        $this->assertSame('public', $payment->fresh()->slip_disk);
+        Storage::disk('public')->assertExists($payment->slip_path);
+        Storage::disk('local')->assertMissing($payment->slip_path);
+    }
+
+    private function createCheckoutCart(): User
+    {
+        $member = $this->createUser('member');
+        $province = ThaiProvince::create(['name_th' => 'เชียงใหม่', 'name_en' => 'Chiang Mai']);
+        $district = ThaiDistrict::create([
+            'province_id' => $province->id,
+            'name_th' => 'เมืองเชียงใหม่',
+            'name_en' => 'Mueang Chiang Mai',
+        ]);
+        ThaiSubdistrict::create([
+            'district_id' => $district->id,
+            'name_th' => 'ศรีภูมิ',
+            'name_en' => 'Si Phum',
+            'zip_code' => '50200',
+        ]);
+        $category = Category::create([
+            'name' => 'Fresh fruit',
+            'slug' => 'private-slip-fruit',
+        ]);
+        $product = Product::create([
+            'category_id' => $category->id,
+            'name' => 'Private Slip Strawberries',
+            'slug' => 'private-slip-strawberries',
+            'price' => 150,
+            'sku' => 'PRIVATE-SLIP-TEST',
+            'status' => 'active',
+        ]);
+        Inventory::create([
+            'product_id' => $product->id,
+            'quantity' => 10,
+            'low_stock_threshold' => 2,
+        ]);
+        $cart = Cart::create(['user_id' => $member->id]);
+        CartItem::create([
+            'cart_id' => $cart->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'price' => 150,
+        ]);
+
+        return $member;
+    }
+
+    private function createUser(string $role): User
+    {
+        return User::create([
+            'name' => ucfirst($role).' User',
+            'email' => uniqid($role.'-', true).'@example.test',
+            'password' => 'password',
+            'role' => $role,
+            'is_active' => true,
+        ]);
+    }
+
+    private function createPayment(string $slipPath, ?string $slipDisk): Payment
+    {
+        $customer = $this->createUser('member');
+        $order = Order::create([
+            'user_id' => $customer->id,
+            'order_number' => 'SLIP-'.strtoupper(bin2hex(random_bytes(5))),
+            'status' => 'pending_payment',
+            'payment_status' => 'pending',
+            'subtotal' => 300,
+            'shipping_fee' => 50,
+            'total' => 350,
+            'ordered_at' => now(),
+            'expires_at' => now()->addDay(),
+        ]);
+
+        return Payment::create([
+            'order_id' => $order->id,
+            'method' => 'bank_transfer',
+            'amount' => 350,
+            'slip_path' => $slipPath,
+            'slip_disk' => $slipDisk,
+            'status' => 'pending',
+        ]);
+    }
+
+    private function slipUrl(Payment $payment): string
+    {
+        return "/admin/payments/{$payment->getKey()}/slip";
+    }
+
+    private function pngBytes(): string
+    {
+        return (string) base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            true,
+        );
+    }
+}

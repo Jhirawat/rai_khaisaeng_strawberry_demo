@@ -93,6 +93,7 @@ Route::middleware(['auth', 'role:staff,admin,super_admin'])->prefix('admin')->na
     Route::patch('orders/{order}', [OrderController::class, 'update'])->name('orders.update');
 
     Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::get('payments/{payment}/slip', [PaymentController::class, 'slip'])->name('payments.slip');
     Route::post('payments/{payment}/approve', [PaymentController::class, 'approve'])->name('payments.approve');
     Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])->name('payments.reject');
 
@@ -112,7 +113,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
     Route::post('theme/preset/{preset}', [ThemeController::class, 'preset'])->name('theme.preset');
     Route::post('theme/reset', [ThemeController::class, 'reset'])->name('theme.reset');
 
-    Route::patch('users/{user}/toggle-status',[UserController::class, 'toggleStatus'])->name('users.toggleStatus');
-    Route::post('users/{user}/reset-password',[UserController::class, 'resetPassword'])->name('users.resetPassword');
-    Route::resource('users',UserController::class);
+    Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggleStatus');
+    Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword');
+    Route::resource('users', UserController::class);
 });
