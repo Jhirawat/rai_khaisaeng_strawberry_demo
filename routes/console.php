@@ -64,6 +64,9 @@ $isAllowedPublicSlipPath = static fn (?string $path): bool => $isSafeSlipPath($p
 $isAllowedPrivateSlipPath = static fn (?string $path): bool => $isSafeSlipPath($path)
     && str_starts_with($path, 'payment_slips/');
 
+$isDemoPublicSlipPath = static fn (?string $path): bool => is_string($path)
+    && str_starts_with($path, 'slips/demo-slip-');
+
 $privateSlipPath = static fn (string $path): string => str_starts_with($path, 'slips/')
     ? 'payment_slips/'.substr($path, strlen('slips/'))
     : $path;
@@ -71,6 +74,7 @@ $privateSlipPath = static fn (string $path): string => str_starts_with($path, 's
 Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
     $isAllowedPrivateSlipPath,
     $isAllowedPublicSlipPath,
+    $isDemoPublicSlipPath,
     $privateSlipPath,
 ) {
     $dryRun = (bool) $this->option('dry-run');
@@ -89,6 +93,7 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
             $dryRun,
             $isAllowedPrivateSlipPath,
             $isAllowedPublicSlipPath,
+            $isDemoPublicSlipPath,
             $privateSlipPath,
             $source,
             &$failed,
@@ -107,6 +112,13 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
                         $path,
                         'slips/'.substr($path, strlen('payment_slips/')),
                     ]));
+
+                    if (array_filter($publicPaths, $isDemoPublicSlipPath) !== []) {
+                        $skipped++;
+
+                        continue;
+                    }
+
                     $existingPublicPaths = array_values(array_filter(
                         $publicPaths,
                         fn (string $publicPath): bool => $source->exists($publicPath),
@@ -163,7 +175,7 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
                     continue;
                 }
 
-                if (str_starts_with((string) $path, 'slips/demo-slip-')) {
+                if ($isDemoPublicSlipPath($path)) {
                     $skipped++;
 
                     continue;

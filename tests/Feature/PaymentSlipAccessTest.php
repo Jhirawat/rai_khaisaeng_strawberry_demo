@@ -414,6 +414,30 @@ class PaymentSlipAccessTest extends TestCase
         Storage::disk('public')->assertMissing('slips/restart-recovery.png');
     }
 
+    public function test_slip_migration_skips_a_bundled_demo_copy_derived_from_a_committed_local_row(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $contents = '<svg></svg>';
+        $privatePath = 'payment_slips/demo-slip-qr-valid.svg';
+        $publicPath = 'slips/demo-slip-qr-valid.svg';
+        $payment = $this->createPayment($privatePath, 'local');
+        Storage::disk('local')->put($privatePath, $contents);
+        Storage::disk('public')->put($publicPath, $contents);
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput('Migrated 0 payment slips; skipped 1; 0 failed.')
+            ->doesntExpectOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(0);
+
+        $payment->refresh();
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertSame($privatePath, $payment->slip_path);
+        Storage::disk('local')->assertExists($privatePath);
+        Storage::disk('public')->assertExists($publicPath);
+        $this->assertSame($contents, Storage::disk('public')->get($publicPath));
+    }
+
     public function test_slip_migration_keeps_the_public_source_until_the_metadata_commit_succeeds(): void
     {
         DB::rollBack();
