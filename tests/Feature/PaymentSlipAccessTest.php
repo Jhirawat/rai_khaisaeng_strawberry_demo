@@ -14,6 +14,7 @@ use App\Models\ThaiProvince;
 use App\Models\ThaiSubdistrict;
 use App\Models\User;
 use App\Services\SlipOcrService;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
@@ -314,6 +315,122 @@ class PaymentSlipAccessTest extends TestCase
         $this->assertSame('public', $payment->fresh()->slip_disk);
         Storage::disk('public')->assertExists($payment->slip_path);
         Storage::disk('local')->assertMissing($payment->slip_path);
+    }
+
+    public function test_slip_migration_treats_a_vetoed_model_save_as_a_failure(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $payment = $this->createPayment('slips/save-veto.png', 'public');
+        $privatePath = 'payment_slips/save-veto.png';
+        Storage::disk('public')->put($payment->slip_path, $this->pngBytes());
+        $eventName = 'eloquent.updating: '.Payment::class;
+        Event::listen($eventName, function (Payment $updating) use ($payment): ?bool {
+            return $updating->is($payment) ? false : null;
+        });
+
+        try {
+            $this->artisan('payments:migrate-slips-private')
+                ->expectsOutput("Payment {$payment->id}: migration failed.")
+                ->doesntExpectOutputToContain("Migrated payment {$payment->id}:")
+                ->assertExitCode(1);
+        } finally {
+            Event::forget($eventName);
+        }
+
+        $payment->refresh();
+        $this->assertSame('public', $payment->slip_disk);
+        $this->assertSame('slips/save-veto.png', $payment->slip_path);
+        Storage::disk('public')->assertExists('slips/save-veto.png');
+        Storage::disk('local')->assertMissing($privatePath);
+    }
+
+    public function test_slip_migration_retries_public_deletion_after_the_first_attempt_fails(): void
+    {
+        $public = Storage::fake('public');
+        Storage::fake('local');
+        $payment = $this->createPayment('slips/delete-retry.png', 'public');
+        $privatePath = 'payment_slips/delete-retry.png';
+        $public->put($payment->slip_path, $this->pngBytes());
+
+        Storage::set('public', new class($public->getDriver(), $public->getAdapter(), $public->getConfig()) extends FilesystemAdapter
+        {
+            private bool $failNextDelete = true;
+
+            public function delete($paths)
+            {
+                if ($this->failNextDelete) {
+                    $this->failNextDelete = false;
+
+                    return false;
+                }
+
+                return parent::delete($paths);
+            }
+        });
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput("Payment {$payment->id}: migration failed.")
+            ->doesntExpectOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(1);
+
+        $payment->refresh();
+        $this->assertSame('public', $payment->slip_disk);
+        $this->assertSame('slips/delete-retry.png', $payment->slip_path);
+        Storage::disk('public')->assertExists('slips/delete-retry.png');
+        Storage::disk('local')->assertExists($privatePath);
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(0);
+
+        $payment->refresh();
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertSame($privatePath, $payment->slip_path);
+        Storage::disk('public')->assertMissing('slips/delete-retry.png');
+        Storage::disk('local')->assertExists($privatePath);
+    }
+
+    public function test_slip_migration_removes_a_partial_failed_write_so_a_rerun_can_succeed(): void
+    {
+        Storage::fake('public');
+        $local = Storage::fake('local');
+        $payment = $this->createPayment('slips/partial-write.png', 'public');
+        $privatePath = 'payment_slips/partial-write.png';
+        Storage::disk('public')->put($payment->slip_path, $this->pngBytes());
+
+        Storage::set('local', new class($local->getDriver(), $local->getAdapter(), $local->getConfig()) extends FilesystemAdapter
+        {
+            public function put($path, $contents, $options = [])
+            {
+                parent::put($path, 'partial', $options);
+
+                return false;
+            }
+        });
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutput("Payment {$payment->id}: migration failed.")
+            ->doesntExpectOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(1);
+
+        $payment->refresh();
+        $this->assertSame('public', $payment->slip_disk);
+        $this->assertSame('slips/partial-write.png', $payment->slip_path);
+        Storage::disk('public')->assertExists('slips/partial-write.png');
+        $local->assertMissing($privatePath);
+
+        Storage::set('local', $local);
+
+        $this->artisan('payments:migrate-slips-private')
+            ->expectsOutputToContain("Migrated payment {$payment->id}:")
+            ->assertExitCode(0);
+
+        $payment->refresh();
+        $this->assertSame('local', $payment->slip_disk);
+        $this->assertSame($privatePath, $payment->slip_path);
+        Storage::disk('public')->assertMissing('slips/partial-write.png');
+        $local->assertExists($privatePath);
     }
 
     private function createCheckoutCart(): User

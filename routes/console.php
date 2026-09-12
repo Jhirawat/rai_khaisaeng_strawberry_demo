@@ -5,6 +5,7 @@ use App\Models\Payment;
 use App\Services\OrderWorkflowService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
 
@@ -118,8 +119,8 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
                     continue;
                 }
 
-                $destinationCreated = false;
-                $databaseUpdated = false;
+                $destinationExistedBeforeCopy = $destination->exists($destinationPath);
+                $metadataPersisted = false;
 
                 try {
                     $sourceChecksum = $source->checksum($path);
@@ -127,7 +128,7 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
                         throw new RuntimeException('Could not checksum the public source file.');
                     }
 
-                    if ($destination->exists($destinationPath)) {
+                    if ($destinationExistedBeforeCopy) {
                         $existingChecksum = $destination->checksum($destinationPath);
                         if (! is_string($existingChecksum) || ! hash_equals($sourceChecksum, $existingChecksum)) {
                             throw new RuntimeException('A different private destination file already exists.');
@@ -142,7 +143,6 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
                             if (! $destination->put($destinationPath, $stream)) {
                                 throw new RuntimeException('Could not write the private destination file.');
                             }
-                            $destinationCreated = true;
                         } finally {
                             fclose($stream);
                         }
@@ -155,20 +155,43 @@ Artisan::command('payments:migrate-slips-private {--dry-run}', function () use (
                         throw new RuntimeException('Private destination verification failed.');
                     }
 
-                    $payment->forceFill([
-                        'slip_disk' => 'local',
-                        'slip_path' => $destinationPath,
-                    ])->save();
-                    $databaseUpdated = true;
+                    DB::transaction(function () use (
+                        $destinationPath,
+                        &$metadataPersisted,
+                        $path,
+                        $payment,
+                        $source,
+                    ): void {
+                        $saved = $payment->forceFill([
+                            'slip_disk' => 'local',
+                            'slip_path' => $destinationPath,
+                        ])->save();
 
-                    if (! $source->delete($path) && $source->exists($path)) {
-                        throw new RuntimeException('Could not delete the migrated public source file.');
-                    }
+                        if (! $saved) {
+                            throw new RuntimeException('Could not update the payment slip metadata.');
+                        }
+
+                        $persisted = Payment::query()
+                            ->select(['slip_disk', 'slip_path'])
+                            ->find($payment->getKey());
+
+                        if ($persisted?->slip_disk !== 'local' || $persisted->slip_path !== $destinationPath) {
+                            throw new RuntimeException('Payment slip metadata verification failed.');
+                        }
+
+                        $metadataPersisted = true;
+
+                        if (! $source->delete($path) && $source->exists($path)) {
+                            throw new RuntimeException('Could not delete the migrated public source file.');
+                        }
+                    });
 
                     $migrated++;
                     $this->info("Migrated payment {$payment->id}: public:{$path} -> local:{$destinationPath}");
                 } catch (Throwable $exception) {
-                    if (! $databaseUpdated && $destinationCreated) {
+                    if (! $metadataPersisted
+                        && ! $destinationExistedBeforeCopy
+                        && $destination->exists($destinationPath)) {
                         $destination->delete($destinationPath);
                     }
 
