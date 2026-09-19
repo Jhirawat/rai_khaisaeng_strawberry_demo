@@ -25,7 +25,13 @@
         <a href="{{ route('admin.users.edit',$user) }}" class="btn btn-danger rounded-pill">แก้ไขผู้ใช้งาน</a>
         <form method="post" action="{{ route('admin.users.resetPassword',$user) }}" onsubmit="return confirm('สร้างรหัสผ่านชั่วคราวแบบสุ่มให้ผู้ใช้นี้?')">@csrf<button class="btn btn-outline-warning rounded-pill w-100">สร้างรหัสผ่านชั่วคราว</button></form>
         <form method="post" action="{{ route('admin.users.toggleStatus',$user) }}" onsubmit="return confirm('ยืนยันเปลี่ยนสถานะบัญชีนี้?')">@csrf @method('patch')<button class="btn btn-outline-secondary rounded-pill w-100">{{ $user->is_active ? 'ระงับบัญชี' : 'เปิดใช้งานบัญชี' }}</button></form>
-        <form method="post" action="{{ route('admin.users.destroy',$user) }}" onsubmit="return confirm('ยืนยันลบบัญชีถาวร? การกระทำนี้ย้อนกลับไม่ได้')">@csrf @method('delete')<button class="btn btn-outline-danger rounded-pill w-100">ลบบัญชีถาวร</button></form>
+        @if($user->id === auth()->id())
+          <div class="alert alert-secondary mb-0" role="status">ไม่สามารถลบบัญชีของตนเองได้</div>
+        @elseif($user->orders_count > 0)
+          <div class="alert alert-warning mb-0" role="status">ไม่สามารถลบบัญชีที่มีประวัติคำสั่งซื้อได้ กรุณาระงับบัญชีแทน</div>
+        @else
+          <form method="post" action="{{ route('admin.users.destroy',$user) }}" aria-label="ลบบัญชี {{ $user->name }}" onsubmit="return confirm('ยืนยันลบบัญชีถาวร? การกระทำนี้ย้อนกลับไม่ได้')">@csrf @method('delete')<button class="btn btn-outline-danger rounded-pill w-100">ลบบัญชีถาวร</button></form>
+        @endif
       </div>
       <hr><div class="small text-muted">2FA Status: ยังไม่ได้เปิดใช้งาน<br>Password Reset: ระบบจะสุ่มรหัสที่เดายากและแสดงให้ผู้ดูแลคัดลอกเพียงครั้งเดียว</div>
     </div>

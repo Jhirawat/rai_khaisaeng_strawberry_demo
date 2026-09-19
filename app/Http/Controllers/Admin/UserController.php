@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -17,6 +19,7 @@ class UserController extends Controller
         $status = $request->get('status');
 
         $users = User::query()
+            ->withCount('orders')
             ->when($q, function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('name', 'like', "%{$q}%")
@@ -73,7 +76,7 @@ class UserController extends Controller
 
     public function show(User $user)
     {
-        $user->load(['orders.items.product', 'addresses']);
+        $user->load(['orders.items.product', 'addresses'])->loadCount('orders');
 
         return view('admin.users.show', compact('user'));
     }
@@ -134,7 +137,24 @@ class UserController extends Controller
         if ($user->id === auth()->id()) {
             return back()->with('success', 'ไม่สามารถลบบัญชีของตนเองได้');
         }
-        $user->delete();
+
+        try {
+            $deleted = DB::transaction(function () use ($user): bool {
+                $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+
+                if ($lockedUser->orders()->exists()) {
+                    return false;
+                }
+
+                return (bool) $lockedUser->delete();
+            });
+        } catch (QueryException) {
+            return back()->with('error', 'ไม่สามารถลบสมาชิกได้ เนื่องจากมีข้อมูลที่เกี่ยวข้อง กรุณาระงับบัญชีแทน');
+        }
+
+        if (! $deleted) {
+            return back()->with('error', 'ไม่สามารถลบสมาชิกที่มีประวัติคำสั่งซื้อได้ กรุณาระงับบัญชีแทน');
+        }
 
         return redirect()->route('admin.users.index')->with('success', 'ลบผู้ใช้งานเรียบร้อยแล้ว');
     }

@@ -35,7 +35,7 @@
       <tbody>
       @forelse($users as $u)
         <tr>
-          <td><div class="d-flex align-items-center gap-3"><div class="avatar-circle">{{ mb_substr($u->name,0,1) }}</div><div><div class="fw-bold">{{ $u->name }}</div><div class="text-muted small">User ID: #{{ $u->id }}</div></div></div></td>
+          <td><div class="d-flex align-items-center gap-3"><div class="avatar-circle">{{ mb_substr($u->name,0,1) }}</div><div><div class="fw-bold">{{ $u->name }}</div><div class="text-muted small">User ID: #{{ $u->id }}</div>@if($u->orders_count > 0)<div class="small text-warning-emphasis"><i class="bi bi-shield-lock"></i> มีประวัติคำสั่งซื้อ · ระงับบัญชีแทน</div>@endif</div></div></td>
           <td><div>{{ $u->email }}</div><div class="text-muted small">{{ $u->phone ?: '-' }}</div></td>
           <td><span class="role-badge role-{{ $u->role }}">{{ str_replace('_',' ', $u->role) }}</span></td>
           <td><span class="text-muted">{{ optional($u->updated_at)->format('d/m/Y H:i') }}</span></td>
