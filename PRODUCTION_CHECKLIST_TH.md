@@ -22,7 +22,26 @@
 1. เข้า Admin > Backup / Export แล้ว Export ข้อมูลสำคัญ
 2. ตรวจ `APP_DEBUG=false`
 3. ตรวจ `ALLOW_DEMO_SEED=false` เพื่อกันข้อมูล Demo ทับข้อมูลจริง
-4. Commit และ Push GitHub ให้เรียบร้อย
+4. ตรวจ `APP_ENV=production` แล้วเปิดหน้า Login เพื่อยืนยันว่าไม่แสดงบัญชีหรือรหัสผ่าน Demo แต่ปุ่ม Social Login ยังอยู่ครบ
+5. ตรวจว่า `.env` ไม่อยู่ใน Git, ZIP, artifact, log หรือไฟล์ที่ส่งให้บุคคลอื่น ห้าม commit หรือเผยแพร่ `.env` โดยเด็ดขาด
+6. Commit และ Push GitHub ให้เรียบร้อย
+
+## ก่อนย้าย Payment Slip เดิม
+
+1. เข้า Admin > Backup / Export และดาวน์โหลดข้อมูลสำรองเก็บไว้นอกเครื่อง Deploy
+2. รัน dry-run ก่อนเสมอและตรวจว่า failed เป็น 0:
+
+```bash
+php artisan payments:migrate-slips-private --dry-run
+```
+
+3. เมื่อตรวจรายการและ backup แล้วจึงรันจริง:
+
+```bash
+php artisan payments:migrate-slips-private
+```
+
+ห้ามลบไฟล์ public ด้วยตนเอง หากคำสั่งรายงาน failed ให้หยุด ตรวจ log/backup และแก้สาเหตุก่อนรันใหม่
 
 ## หลัง Deploy
 ```bash
@@ -31,6 +50,10 @@ php artisan migrate --force
 php artisan db:seed --force
 php artisan storage:link
 ```
+
+หลังเปลี่ยน Variables ต้องรัน `php artisan optimize:clear` ก่อนตรวจหน้า Login เพื่อไม่ให้ config cache เก่าทำให้ environment ไม่ตรงกับ `APP_ENV=production`
+
+ตั้ง process สำหรับ scheduler ให้ทำงานต่อเนื่องด้วย `php artisan schedule:work` หรือ cron ที่เรียก `php artisan schedule:run` ทุกนาที เพื่อให้งานหมดอายุคำสั่งซื้อทำงานจริง
 
 ## ทดสอบหลัง Deploy
 - หน้าแรก / หน้าสินค้า / รายละเอียดสินค้า เปิดได้
@@ -44,6 +67,8 @@ php artisan storage:link
 - จังหวัด/อำเภอ/ตำบล/ไปรษณีย์ โหลดได้
 - ยกเลิกออเดอร์แล้วคืน Stock แค่ครั้งเดียว
 - Login ผิดเกิน 5 ครั้ง ถูกหน่วงชั่วคราว
+- หน้า Login Production ไม่แสดงอีเมล Demo ทั้งสามบัญชีและไม่แสดงรหัสผ่าน Demo
+- Social Login ยังแสดงและทำงานตามค่าที่ตั้งไว้
 - ไม่ขึ้น Chrome “Send anyway” หลังบันทึกฟอร์ม
 
 

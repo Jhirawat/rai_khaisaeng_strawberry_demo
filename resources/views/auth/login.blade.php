@@ -24,7 +24,9 @@
                 @endforeach
             </div>
             <p class="auth-switch">{{__('New to Rai Khaisaeng?')}} <a href="{{route('register')}}">{{__('Create an account')}}</a></p>
-            <details class="demo-accounts"><summary>{{__('Demo accounts')}}</summary><div><span>Member</span><code>user_test@khaisaeng.test</code><code>password</code></div><div><span>Admin</span><code>admin_test@khaisaeng.test</code><code>password</code></div><div><span>Super Admin</span><code>sbadmin_test@khaisaeng.test</code><code>password</code></div></details>
+            @env('local')
+                <details class="demo-accounts"><summary>{{__('Demo accounts')}}</summary><div><span>Member</span><code>user_test@khaisaeng.test</code><code>password</code></div><div><span>Admin</span><code>admin_test@khaisaeng.test</code><code>password</code></div><div><span>Super Admin</span><code>sbadmin_test@khaisaeng.test</code><code>password</code></div></details>
+            @endenv
         </section>
         <aside class="auth-story" aria-label="Rai Khaisaeng Strawberry Farm"><div class="auth-story-overlay"></div><div class="auth-story-content"><span class="story-pill"><i class="bi bi-geo-alt"></i> {{__('Samoeng, Chiang Mai')}}</span><blockquote>“{{__('From our mountain farm to your table, every order supports a local growing community.')}}”</blockquote><div class="story-proof"><strong>20+</strong><span>{{__('Years of farming experience')}}</span></div></div></aside>
     </div>

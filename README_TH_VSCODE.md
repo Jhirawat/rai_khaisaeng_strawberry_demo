@@ -75,6 +75,8 @@ Start:
 - Apache
 - MySQL
 
+ระบบเว็บที่รันในเครื่องใช้ฐานข้อมูล MySQL จาก XAMPP ตามค่าใน `.env` ดังนั้นต้องเปิด MySQL ก่อนรัน migration, seeder หรือเปิดหน้าร้าน ส่วน Apache ไม่จำเป็นเมื่อใช้ `artisan serve`
+
 ---
 
 ## 5. คำสั่งติดตั้งและรันครั้งแรก
@@ -82,11 +84,11 @@ Start:
 ```powershell
 composer install
 copy .env.example .env
-php artisan key:generate
-php artisan migrate:fresh --seed
-php artisan storage:link
-php artisan optimize:clear
-php artisan serve
+C:\xampp\php\php.exe artisan key:generate
+C:\xampp\php\php.exe artisan migrate:fresh --seed
+C:\xampp\php\php.exe artisan storage:link
+C:\xampp\php\php.exe artisan optimize:clear
+C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
 ```
 
 เปิดเว็บ:
@@ -125,21 +127,21 @@ npm run build
 User:
 
 ```text
-user_test@example.com
+user_test@khaisaeng.test
 password
 ```
 
 Admin:
 
 ```text
-admin_test@example.com
+admin_test@khaisaeng.test
 password
 ```
 
 Super Admin:
 
 ```text
-sbadmin_test@example.com
+sbadmin_test@khaisaeng.test
 password
 ```
 
@@ -150,7 +152,7 @@ password
 ถ้าแก้ `.env` แล้วระบบยังไม่เปลี่ยน:
 
 ```powershell
-php artisan optimize:clear
+C:\xampp\php\php.exe artisan optimize:clear
 ```
 
 ถ้า storage link มีอยู่แล้ว:
@@ -160,6 +162,63 @@ The public/storage link already exists.
 ```
 
 ไม่ต้องตกใจ ใช้งานต่อได้
+
+---
+
+## 10. งานประจำ ระบบทดสอบ และการย้ายสลิปแบบปลอดภัย
+
+### รันตัวตั้งเวลาของ Laravel
+
+เปิด Terminal อีกหน้าหนึ่งค้างไว้ระหว่างที่ระบบทำงาน:
+
+```powershell
+C:\xampp\php\php.exe artisan schedule:work
+```
+
+คำสั่งนี้เรียกงานตามเวลา เช่น การหมดอายุของคำสั่งซื้อที่รอชำระเงิน ส่วนเว็บให้รันแยกอีก Terminal ด้วย:
+
+```powershell
+C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
+```
+
+### รัน automated tests
+
+`phpunit.xml` บังคับให้ automated tests ใช้ SQLite แบบ `:memory:` ชั่วคราว ไม่แตะ MySQL ใน `.env` และไม่แตะข้อมูลร้านจริง:
+
+```powershell
+C:\xampp\php\php.exe artisan test
+```
+
+ตรวจ extension ที่ XAMPP โหลดอยู่ก่อนด้วย `C:\xampp\php\php.exe -m` ถ้าเห็น `pdo_sqlite` แล้ว ไม่ต้องเติม `-d extension=pdo_sqlite` ซ้ำ เพราะ PHP จะแจ้งเตือนว่าโหลด extension ซ้ำ สำหรับเครื่องที่ยังไม่เปิด extension ที่จำเป็น ให้เปิด `pdo_sqlite`, `sqlite3`, `gd` และ `zip` เพียงครั้งเดียวใน `C:\xampp\php\php.ini` แล้วปิด/เปิด Terminal ใหม่ หรือใช้คำสั่งชั่วคราวนี้เฉพาะ extension ที่ยังไม่แสดงใน `-m`:
+
+```powershell
+C:\xampp\php\php.exe -d extension=pdo_sqlite -d extension=sqlite3 -d extension=gd -d extension=zip artisan test
+```
+
+ห้ามเปลี่ยน test database ไปเป็น MySQL เพื่อแก้ปัญหา test เพราะ test harness จะหยุดทำงานทันทีหากไม่ได้ใช้ SQLite `:memory:`
+
+### ย้าย payment slip จาก public storage ไป private storage
+
+1. เข้า Admin > Backup / Export และเก็บไฟล์สำรองก่อนทุกครั้ง
+2. รัน dry-run เพื่อตรวจรายการ โดยยังไม่ย้ายหรือลบไฟล์:
+
+```powershell
+C:\xampp\php\php.exe artisan payments:migrate-slips-private --dry-run
+```
+
+3. ตรวจผลลัพธ์และจำนวน failed ให้เป็น 0 แล้วจึงรันจริง:
+
+```powershell
+C:\xampp\php\php.exe artisan payments:migrate-slips-private
+```
+
+หากมี failed ห้ามลบไฟล์สลิปต้นทางเอง ให้ตรวจ backup และสาเหตุก่อนรันซ้ำ
+
+### รักษาความลับของ `.env`
+
+- ใช้ `.env.example` เป็นแม่แบบ แต่ห้าม commit, push, แนบไฟล์ หรือส่ง `.env` ให้ผู้อื่น
+- `.env` อาจมีรหัสผ่านฐานข้อมูล, APP_KEY, social-login secret และค่าลับของบริการภายนอก
+- เมื่อแก้ `APP_ENV` หรือค่า config ให้รัน `C:\xampp\php\php.exe artisan optimize:clear` ก่อนตรวจผล เพื่อไม่ให้ config cache เก่าค้างอยู่
 
 
 ---
@@ -189,11 +248,11 @@ npm run build
 ```powershell
 composer install
 copy .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan storage:link
-php artisan optimize:clear
-php artisan serve
+C:\xampp\php\php.exe artisan key:generate
+C:\xampp\php\php.exe artisan migrate --seed
+C:\xampp\php\php.exe artisan storage:link
+C:\xampp\php\php.exe artisan optimize:clear
+C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
 ```
 
 
@@ -217,10 +276,10 @@ php artisan serve
 
 ### คำสั่งสร้างข้อมูลทดสอบใหม่ทั้งหมด
 
-```bash
-php artisan migrate:fresh --seed
-php artisan storage:link
-php artisan optimize:clear
+```powershell
+C:\xampp\php\php.exe artisan migrate:fresh --seed
+C:\xampp\php\php.exe artisan storage:link
+C:\xampp\php\php.exe artisan optimize:clear
 ```
 
 ### ไฟล์สำคัญ
@@ -261,11 +320,11 @@ storage/app/public/slips/demo-slip-*.svg
 ```powershell
 composer install
 copy .env.example .env
-php artisan key:generate
-php artisan migrate:fresh --seed
-php artisan storage:link
-php artisan optimize:clear
-php artisan serve
+C:\xampp\php\php.exe artisan key:generate
+C:\xampp\php\php.exe artisan migrate:fresh --seed
+C:\xampp\php\php.exe artisan storage:link
+C:\xampp\php\php.exe artisan optimize:clear
+C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
 ```
 
 ถ้าต้องการ build asset frontend:
@@ -284,11 +343,11 @@ npm run build
 ```powershell
 composer install
 copy .env.example .env
-php artisan key:generate
-php artisan storage:link
-php artisan migrate:fresh --seed
-php artisan optimize:clear
-php artisan serve
+C:\xampp\php\php.exe artisan key:generate
+C:\xampp\php\php.exe artisan storage:link
+C:\xampp\php\php.exe artisan migrate:fresh --seed
+C:\xampp\php\php.exe artisan optimize:clear
+C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
 ```
 
 ### ตรวจสอบก่อน Push
@@ -310,7 +369,7 @@ git push -u origin main --force
 ### ถ้าต้องสร้าง APP_KEY สำหรับ Railway
 
 ```powershell
-php artisan key:generate --show
+C:\xampp\php\php.exe artisan key:generate --show
 ```
 
 นำค่าที่ได้ไปใส่ใน Railway Variable: `APP_KEY`
