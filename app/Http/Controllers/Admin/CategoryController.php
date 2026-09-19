@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Support\ActivityLogger;
+use App\Support\ForeignKeyConstraintViolation;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,11 @@ class CategoryController extends Controller
 {
     public function index()
     {
-        return view('admin.categories.index', ['categories' => Category::withCount('products')->paginate(20)]);
+        return view('admin.categories.index', [
+            'categories' => Category::withCount([
+                'products' => fn ($query) => $query->withTrashed(),
+            ])->paginate(20),
+        ]);
     }
 
     public function store(Request $r)
@@ -42,7 +47,7 @@ class CategoryController extends Controller
             $deleted = DB::transaction(function () use ($category): bool {
                 $lockedCategory = Category::query()->lockForUpdate()->findOrFail($category->id);
 
-                if ($lockedCategory->products()->exists()) {
+                if ($lockedCategory->products()->withTrashed()->exists()) {
                     return false;
                 }
 
@@ -52,7 +57,11 @@ class CategoryController extends Controller
 
                 return true;
             });
-        } catch (QueryException) {
+        } catch (QueryException $exception) {
+            if (! ForeignKeyConstraintViolation::causedBy($exception)) {
+                throw $exception;
+            }
+
             return back()->with('error', 'ไม่สามารถลบหมวดหมู่ได้ เนื่องจากมีข้อมูลที่เกี่ยวข้อง กรุณาย้ายสินค้าหรือปิดใช้งานหมวดหมู่แทน');
         }
 

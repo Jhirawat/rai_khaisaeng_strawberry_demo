@@ -10,7 +10,7 @@
     </div>
     <div class="card detail-card p-4 mb-4">
       <h4 class="fw-bold mb-3">ประวัติการซื้อ</h4>
-      <div class="table-responsive"><table class="table"><tr><th>เลขออเดอร์</th><th>ยอด</th><th>สถานะ</th><th>วันที่</th></tr>@forelse($user->orders()->latest()->limit(10)->get() as $order)<tr><td><a href="{{ route('admin.orders.show',$order) }}">{{ $order->order_number }}</a></td><td>฿{{ number_format($order->total,2) }}</td><td>{{ $order->status }}</td><td>{{ $order->created_at->format('d/m/Y H:i') }}</td></tr>@empty<tr><td colspan="4" class="text-muted text-center py-4">ยังไม่มีคำสั่งซื้อ</td></tr>@endforelse</table></div>
+      <div class="table-responsive"><table class="table"><tr><th>เลขออเดอร์</th><th>ยอด</th><th>สถานะ</th><th>วันที่</th></tr>@forelse($latestOrders as $order)<tr><td><a href="{{ route('admin.orders.show',$order) }}">{{ $order->order_number }}</a></td><td>฿{{ number_format($order->total,2) }}</td><td>{{ $order->status }}</td><td>{{ $order->created_at->format('d/m/Y H:i') }}</td></tr>@empty<tr><td colspan="4" class="text-muted text-center py-4">ยังไม่มีคำสั่งซื้อ</td></tr>@endforelse</table></div>
     </div>
     <div class="card detail-card p-4">
       <h4 class="fw-bold mb-3">Activity Logs</h4>

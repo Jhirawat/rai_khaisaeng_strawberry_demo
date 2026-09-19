@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\ShippingAddress;
+use App\Models\User;
 use App\Services\SlipOcrService;
 use App\Support\ValidatesThaiAddress;
 use Illuminate\Http\Request;
@@ -112,9 +113,16 @@ class CheckoutController extends Controller
             }
         }
 
-        return DB::transaction(function () use ($d, $r, $slipAnalysis) {
+        $userId = (int) auth()->id();
+
+        return DB::transaction(function () use ($d, $r, $slipAnalysis, $userId) {
+            $lockedUser = User::withTrashed()->lockForUpdate()->find($userId);
+            if (! $lockedUser || $lockedUser->trashed() || ! $lockedUser->is_active) {
+                return redirect()->route('login')->with('error', 'ไม่สามารถสร้างคำสั่งซื้อได้ เนื่องจากบัญชีไม่ได้เปิดใช้งาน');
+            }
+
             // Edge case: lock ตะกร้าใน Transaction ป้องกัน double submit / กด Checkout ซ้ำพร้อมกัน
-            $cart = Cart::where('user_id', auth()->id())->lockForUpdate()->first();
+            $cart = Cart::where('user_id', $lockedUser->id)->lockForUpdate()->first();
             if (! $cart) {
                 return redirect()->route('member.cart')->with('error', __('Your cart is empty. Please choose products before checkout.'));
             }
@@ -148,7 +156,7 @@ class CheckoutController extends Controller
             $isCashOnDelivery = $d['payment_method'] === 'cod';
 
             $order = Order::create([
-                'user_id' => auth()->id(),
+                'user_id' => $lockedUser->id,
                 'order_number' => Order::generateOrderNumber(),
                 'status' => $isCashOnDelivery ? 'confirmed' : 'pending_payment',
                 'payment_status' => 'pending',
@@ -185,7 +193,7 @@ class CheckoutController extends Controller
                     'type' => 'order_deduct',
                     'quantity' => $i->quantity,
                     'note' => 'ตัดสต๊อกจากคำสั่งซื้อ '.$order->order_number,
-                    'user_id' => auth()->id(),
+                    'user_id' => $lockedUser->id,
                 ]);
             }
 

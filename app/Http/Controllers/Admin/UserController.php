@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\ForeignKeyConstraintViolation;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -76,9 +77,14 @@ class UserController extends Controller
 
     public function show(User $user)
     {
-        $user->load(['orders.items.product', 'addresses'])->loadCount('orders');
+        $user->load('addresses')->loadCount('orders');
+        $latestOrders = $user->orders()
+            ->with('items.product')
+            ->latest()
+            ->limit(10)
+            ->get();
 
-        return view('admin.users.show', compact('user'));
+        return view('admin.users.show', compact('user', 'latestOrders'));
     }
 
     public function edit(User $user)
@@ -148,7 +154,11 @@ class UserController extends Controller
 
                 return (bool) $lockedUser->delete();
             });
-        } catch (QueryException) {
+        } catch (QueryException $exception) {
+            if (! ForeignKeyConstraintViolation::causedBy($exception)) {
+                throw $exception;
+            }
+
             return back()->with('error', 'ไม่สามารถลบสมาชิกได้ เนื่องจากมีข้อมูลที่เกี่ยวข้อง กรุณาระงับบัญชีแทน');
         }
 
