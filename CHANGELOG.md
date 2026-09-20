@@ -7,8 +7,10 @@
 - เก็บสลิปใหม่ไว้ใน Private Storage และเปิดดูผ่าน Route ที่ตรวจสิทธิ์พนักงานเท่านั้น พร้อมคำสั่ง `payments:migrate-slips-private` สำหรับย้ายสลิปเดิมแบบตรวจ checksum, dry-run และรันซ้ำได้โดยไม่แตะไฟล์ตัวอย่าง
 - ป้องกันการลบสมาชิกที่มีประวัติออเดอร์และหมวดหมู่ที่ยังมีสินค้า (รวมสินค้าที่ soft delete) พร้อมใช้ row lock ร่วมกับ Checkout เพื่อลดความเสี่ยงข้อมูลธุรกรรมสูญหาย
 - ซ่อนบัญชีตัวอย่างนอก Local Environment และกำหนดให้การสร้างบัญชีรหัสผ่านที่ทราบล่วงหน้าต้องเปิด `ALLOW_DEMO_SEED` อย่างชัดเจน พร้อมปรับคู่มือ Local/Production, Backup และ Scheduler
-- เพิ่มชุดทดสอบ PHPUnit แบบบังคับ SQLite `:memory:` ครอบคลุม lifecycle, expiry, stock idempotence, payment/COD, สิทธิ์สลิป, deletion guards, demo visibility และ database isolation; รอบตรวจสอบนี้ผ่าน 123 tests / 704 assertions
-- การตรวจ MySQL/HTTP จริงและ lock contention ถูกเลื่อนออกไป เนื่องจาก XAMPP MySQL ที่ `127.0.0.1:3306` ไม่เปิดรับการเชื่อมต่อในเครื่องตรวจสอบ และไม่มีการใช้ฐานข้อมูล Development แทน
+- เพิ่มชุดทดสอบ PHPUnit แบบบังคับ SQLite `:memory:` ครอบคลุม lifecycle, expiry, stock idempotence, payment/COD, สิทธิ์สลิป, deletion guards, demo visibility และ database isolation; รอบตรวจสอบเต็มชุดล่าสุดผ่าน 123 tests / 705 assertions
+- ตรวจ MySQL/HTTP จริงครบถ้วนบน Disposable Schema ชื่อ `rai_khaisaeng_hardening_smoke_20260920` เท่านั้น ครอบคลุมหน้าร้าน, Login, Cart, Checkout, Member/Admin Orders, Payment, Inventory, ลำดับสถานะออเดอร์ และใบเสร็จ HTML/PDF รวมทั้งตรวจ InnoDB lock contention ด้วยการเชื่อมต่ออิสระครบทั้งลำดับ Checkout ก่อนลบสมาชิกและลบสมาชิกก่อน Checkout
+- แก้ Checkout ให้รองรับการไม่ส่งช่องข้อมูลใบกำกับภาษีที่เป็น Optional โดยอ่าน `customer_tax_address` แบบ null-safe พร้อม Regression Test สำหรับคำขอที่ไม่ส่งช่องภาษี
+- หลัง Smoke Test ได้หยุด Process/ปิด Port ที่ใช้ชั่วคราว และลบ `.env`, สลิปส่วนตัวชั่วคราว และ Log เฉพาะงานแล้ว ส่วน Disposable Schema ถูกเก็บไว้โดยตั้งใจเพื่อเป็นหลักฐานและมีเฉพาะข้อมูล Demo/Synthetic ที่ผ่านการทดสอบแล้ว จึงต้องสร้างใหม่ก่อนใช้ Smoke แบบ Clean-room และห้ามใช้แทนฐานข้อมูล Development หรือ Production
 - Pint ทั้ง Repository และไฟล์ Seeder ที่สร้างจากชุดที่อยู่ขนาดใหญ่ยังใช้เวลานานเกินกรอบตรวจสอบ; Scoped Pint ยืนยันว่า `routes` และ `tests` ผ่าน แต่ยังพบ style/line-ending debt เดิมใน `app`, `bootstrap`, `config`, migrations และ seeders ซึ่งควรแยกทำเป็นงาน formatting เพื่อลดความเสี่ยงจาก diff ขนาดใหญ่
 
 ## v30 - Storefront & Member Login Refresh
