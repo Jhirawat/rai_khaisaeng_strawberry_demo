@@ -9,19 +9,23 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // บัญชีทดสอบเดิม
-        User::updateOrCreate(['email'=>'admin@maeyangha.test'],['name'=>'Super Admin','password'=>Hash::make('password'),'role'=>'super_admin','phone'=>'0899998295','is_active'=>true]);
-        User::updateOrCreate(['email'=>'member@maeyangha.test'],['name'=>'Demo Member','password'=>Hash::make('password'),'role'=>'member','phone'=>'0810334893','is_active'=>true]);
+        $shouldSeedDemoData = ! app()->environment('production') || (bool) config('app.allow_demo_seed', false);
 
-        // บัญชีทดสอบหลักสำหรับส่งอาจารย์ / Tester
-        User::updateOrCreate(['email'=>'user_test@khaisaeng.test'],['name'=>'user_test','password'=>Hash::make('password'),'role'=>'member','phone'=>'0812345678','is_active'=>true]);
-        User::updateOrCreate(['email'=>'admin_test@khaisaeng.test'],['name'=>'admin_test','password'=>Hash::make('password'),'role'=>'admin','phone'=>'0899998295','is_active'=>true]);
-        User::updateOrCreate(['email'=>'sbadmin_test@khaisaeng.test'],['name'=>'sb admin_test','password'=>Hash::make('password'),'role'=>'super_admin','phone'=>'0892655686','is_active'=>true]);
+        if ($shouldSeedDemoData) {
+            // บัญชีทดสอบเดิม
+            User::updateOrCreate(['email'=>'admin@maeyangha.test'],['name'=>'Super Admin','password'=>Hash::make('password'),'role'=>'super_admin','phone'=>'0899998295','is_active'=>true]);
+            User::updateOrCreate(['email'=>'member@maeyangha.test'],['name'=>'Demo Member','password'=>Hash::make('password'),'role'=>'member','phone'=>'0810334893','is_active'=>true]);
+
+            // บัญชีทดสอบหลักสำหรับส่งอาจารย์ / Tester
+            User::updateOrCreate(['email'=>'user_test@khaisaeng.test'],['name'=>'user_test','password'=>Hash::make('password'),'role'=>'member','phone'=>'0812345678','is_active'=>true]);
+            User::updateOrCreate(['email'=>'admin_test@khaisaeng.test'],['name'=>'admin_test','password'=>Hash::make('password'),'role'=>'admin','phone'=>'0899998295','is_active'=>true]);
+            User::updateOrCreate(['email'=>'sbadmin_test@khaisaeng.test'],['name'=>'sb admin_test','password'=>Hash::make('password'),'role'=>'super_admin','phone'=>'0892655686','is_active'=>true]);
+        }
 
         $this->call(ThaiAddressFullSeeder::class);
 
         // v28 Seed Protection: บน Production จะไม่รัน DemoProductionSeeder อัตโนมัติ เพื่อกันข้อมูลจริงโดนทับ/เพิ่มซ้ำ
-        if (! app()->environment('production') || filter_var(env('ALLOW_DEMO_SEED', false), FILTER_VALIDATE_BOOLEAN)) {
+        if ($shouldSeedDemoData) {
             $this->call(DemoProductionSeeder::class);
         }
 

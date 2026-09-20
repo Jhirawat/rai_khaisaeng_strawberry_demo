@@ -19,7 +19,7 @@
 - `LINE_REDIRECT_URI=https://raikhaisaengstrawberrydemo-production.up.railway.app/auth/line/callback`
 
 ## ก่อน Deploy
-1. เข้า Admin > Backup / Export แล้ว Export ข้อมูลสำคัญ
+1. เข้า Admin > Backup / Export เพื่อดาวน์โหลด CSV สำหรับอ้างอิงการดำเนินงานได้ แต่ CSV นี้ไม่ใช่ database backup และไม่มี payment metadata หรือไฟล์สลิป
 2. ตรวจ `APP_DEBUG=false`
 3. ตรวจ `ALLOW_DEMO_SEED=false` เพื่อกันข้อมูล Demo ทับข้อมูลจริง
 4. ตรวจ `APP_ENV=production` แล้วเปิดหน้า Login เพื่อยืนยันว่าไม่แสดงบัญชีหรือรหัสผ่าน Demo แต่ปุ่ม Social Login ยังอยู่ครบ
@@ -28,20 +28,52 @@
 
 ## ก่อนย้าย Payment Slip เดิม
 
-1. เข้า Admin > Backup / Export และดาวน์โหลดข้อมูลสำรองเก็บไว้นอกเครื่อง Deploy
-2. รัน dry-run ก่อนเสมอและตรวจว่า failed เป็น 0:
+1. กำหนด maintenance window หรือหยุดการเขียนข้อมูลชั่วคราว แล้วสร้าง database dump หรือ snapshot ของฐานข้อมูลจริงที่สามารถ restore ได้ เก็บสำเนานอกเครื่อง Deploy
+2. คัดลอกหรือ snapshot โฟลเดอร์ต่อไปนี้ไปยัง disk/bucket ภายนอก โดยรักษา path เดิม (บันทึกไว้หากโฟลเดอร์ใดยังไม่มี):
+
+```text
+storage/app/public/slips/
+storage/app/public/payment_slips/
+storage/app/private/payment_slips/
+```
+
+3. ทดสอบ restore database ไปยัง instance ที่แยกจาก Production และยืนยันว่าไม่มี error เทียบจำนวนแถวใน `payments` แล้วสุ่มตรวจ `slip_disk`/`slip_path` กับไฟล์ที่คัดลอก รวมถึงขนาดหรือ checksum ของไฟล์ตัวอย่าง
+4. Admin > Backup / Export ใช้เป็น CSV ประกอบการตรวจสอบได้เท่านั้น **ห้ามใช้แทน** database dump/snapshot และสำเนาไฟล์สลิป
+5. รัน dry-run ก่อนเสมอและตรวจว่า failed เป็น 0:
 
 ```bash
 php artisan payments:migrate-slips-private --dry-run
 ```
 
-3. เมื่อตรวจรายการและ backup แล้วจึงรันจริง:
+6. เมื่อตรวจรายการและยืนยันว่า backup restore ได้แล้วจึงรันจริง:
 
 ```bash
 php artisan payments:migrate-slips-private
 ```
 
+7. หลังรัน ตรวจว่า failed เป็น 0, metadata ชี้ไป `local:payment_slips/...`, ผู้ดูแลที่มีสิทธิ์เปิดสลิปตัวอย่างได้ และสำเนาภายนอกยังอยู่ครบ อย่าลบ backup ก่อนพ้นระยะเวลาเก็บรักษา
+
 ห้ามลบไฟล์ public ด้วยตนเอง หากคำสั่งรายงาน failed ให้หยุด ตรวจ log/backup และแก้สาเหตุก่อนรันใหม่
+
+## ตรวจบัญชี Demo ที่อาจมีอยู่จาก Deployment เดิม
+
+การตั้ง `ALLOW_DEMO_SEED=false` ป้องกันการสร้างบัญชีใหม่ แต่ไม่ลบบัญชีที่ถูกสร้างไปแล้ว ให้ค้นหาบัญชีที่เคยใช้รหัสผ่านสาธารณะด้วย query แบบอ่านอย่างเดียวก่อน:
+
+```sql
+SELECT id, email, role, is_active
+FROM users
+WHERE email IN (
+  'admin@maeyangha.test',
+  'member@maeyangha.test',
+  'user_test@khaisaeng.test',
+  'admin_test@khaisaeng.test',
+  'sbadmin_test@khaisaeng.test'
+);
+```
+
+- ถ้าไม่ใช้งานจริง ให้ปิดใช้งานทันที ตรวจข้อมูลที่เชื่อมโยง/เก็บหลักฐานตามนโยบาย แล้วจึงลบผ่านขั้นตอนผู้ดูแลที่รองรับ
+- ถ้าจำเป็นต้องเก็บบัญชี ให้เปลี่ยนอีเมลตามเหมาะสม เปลี่ยนเป็นรหัสผ่านสุ่มที่ไม่ซ้ำและไม่เปิดเผย ตรวจ role ให้เหลือสิทธิ์ขั้นต่ำ และยกเลิก session/token เดิม
+- บันทึกผู้ดำเนินการ เวลา และผลตรวจสอบ ห้ามใส่รหัสผ่านใหม่ลง Git, `.env`, log หรือเอกสารนี้
 
 ## หลัง Deploy
 ```bash
@@ -51,7 +83,7 @@ php artisan db:seed --force
 php artisan storage:link
 ```
 
-หลังเปลี่ยน Variables ต้องรัน `php artisan optimize:clear` ก่อนตรวจหน้า Login เพื่อไม่ให้ config cache เก่าทำให้ environment ไม่ตรงกับ `APP_ENV=production`
+เมื่อ `APP_ENV=production` และ `ALLOW_DEMO_SEED=false` คำสั่ง `db:seed` จะไม่สร้างบัญชีที่ใช้รหัสผ่านสาธารณะและจะไม่รันชุดข้อมูล `DemoProductionSeeder` แต่ยังลงข้อมูลอ้างอิงที่ระบบต้องใช้ หลังเปลี่ยน Variables ต้องรัน `php artisan optimize:clear` **ก่อน** `db:seed` และก่อนตรวจหน้า Login เพื่อไม่ให้ config cache เก่าทำให้ environment หรือ flag ไม่ตรงกับค่าปัจจุบัน
 
 ตั้ง process สำหรับ scheduler ให้ทำงานต่อเนื่องด้วย `php artisan schedule:work` หรือ cron ที่เรียก `php artisan schedule:run` ทุกนาที เพื่อให้งานหมดอายุคำสั่งซื้อทำงานจริง
 

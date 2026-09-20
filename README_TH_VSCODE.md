@@ -84,6 +84,30 @@ Start:
 ```powershell
 composer install
 copy .env.example .env
+```
+
+`.env.example` ตั้งต้นสำหรับ Production หลัง copy แล้วต้องเปิด `.env` และตั้งค่าต่อไปนี้สำหรับเครื่อง Local **ก่อนรันคำสั่ง `artisan` ใด ๆ** (สร้างฐานข้อมูล `maeyangha_shop` ใน MySQL ก่อน หรือเปลี่ยนชื่อให้ตรงกับฐานข้อมูล Local ของคุณ):
+
+```env
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://127.0.0.1:8000
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=maeyangha_shop
+DB_USERNAME=root
+DB_PASSWORD=
+
+ALLOW_DEMO_SEED=false
+```
+
+`DB_PASSWORD=` แบบว่างใช้ได้เฉพาะเมื่อ MySQL ของ XAMPP ในเครื่องไม่ได้ตั้งรหัสผ่าน หากตั้งไว้แล้วให้ใส่ค่าจริงเฉพาะใน `.env` และห้าม commit หรือส่งไฟล์นี้ให้ผู้อื่น เมื่อ `APP_ENV=local` ระบบจะสร้างข้อมูลและบัญชี Demo สำหรับทดสอบโดยตั้งใจ อย่าใช้ `APP_ENV=local` บนเครื่อง Production
+
+จากนั้นจึงรัน:
+
+```powershell
 C:\xampp\php\php.exe artisan key:generate
 C:\xampp\php\php.exe artisan migrate:fresh --seed
 C:\xampp\php\php.exe artisan storage:link
@@ -122,7 +146,7 @@ npm run build
 
 ---
 
-## 8. บัญชีทดสอบ
+## 8. บัญชีทดสอบ (เฉพาะ `APP_ENV=local`)
 
 User:
 
@@ -189,30 +213,69 @@ C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
 C:\xampp\php\php.exe artisan test
 ```
 
-ตรวจ extension ที่ XAMPP โหลดอยู่ก่อนด้วย `C:\xampp\php\php.exe -m` ถ้าเห็น `pdo_sqlite` แล้ว ไม่ต้องเติม `-d extension=pdo_sqlite` ซ้ำ เพราะ PHP จะแจ้งเตือนว่าโหลด extension ซ้ำ สำหรับเครื่องที่ยังไม่เปิด extension ที่จำเป็น ให้เปิด `pdo_sqlite`, `sqlite3`, `gd` และ `zip` เพียงครั้งเดียวใน `C:\xampp\php\php.ini` แล้วปิด/เปิด Terminal ใหม่ หรือใช้คำสั่งชั่วคราวนี้เฉพาะ extension ที่ยังไม่แสดงใน `-m`:
+ตรวจ extension ที่ XAMPP โหลดอยู่ก่อนด้วย `C:\xampp\php\php.exe -m` ถ้าเห็นชื่อ extension แล้ว ห้ามเติม `-d` ของชื่อนั้นซ้ำ เพราะ PHP จะแจ้งเตือนว่าโหลด extension ซ้ำ ทางที่แนะนำคือเปิด `pdo_sqlite`, `sqlite3`, `gd` และ `zip` เพียงครั้งเดียวใน `C:\xampp\php\php.ini` แล้วปิด/เปิด Terminal ใหม่
+
+หากต้องใช้ `-d` ชั่วคราว ให้ใส่ **เฉพาะตัวที่ไม่ปรากฏในผล `-m`** ตัวอย่างเช่น:
 
 ```powershell
-C:\xampp\php\php.exe -d extension=pdo_sqlite -d extension=sqlite3 -d extension=gd -d extension=zip artisan test
+# ขาดเฉพาะ pdo_sqlite
+C:\xampp\php\php.exe -d extension=pdo_sqlite artisan test
+
+# ขาดเฉพาะ sqlite3
+C:\xampp\php\php.exe -d extension=sqlite3 artisan test
+
+# ขาดเฉพาะ gd
+C:\xampp\php\php.exe -d extension=gd artisan test
+
+# ขาดเฉพาะ zip
+C:\xampp\php\php.exe -d extension=zip artisan test
 ```
+
+ถ้าขาดหลายตัว ให้รวมเฉพาะ switch ของตัวที่ขาด เช่น `-d extension=sqlite3 -d extension=gd` และลบ switch ของ extension ที่ `-m` แสดงแล้วออกเสมอ
 
 ห้ามเปลี่ยน test database ไปเป็น MySQL เพื่อแก้ปัญหา test เพราะ test harness จะหยุดทำงานทันทีหากไม่ได้ใช้ SQLite `:memory:`
 
 ### ย้าย payment slip จาก public storage ไป private storage
 
-1. เข้า Admin > Backup / Export และเก็บไฟล์สำรองก่อนทุกครั้ง
-2. รัน dry-run เพื่อตรวจรายการ โดยยังไม่ย้ายหรือลบไฟล์:
+Admin > Backup / Export ดาวน์โหลดได้เฉพาะ CSV ของสินค้า ออเดอร์ ผู้ใช้ และสต็อก จึง **ไม่ใช่ backup สำหรับงานนี้** เพราะไม่มี payment metadata และไฟล์สลิป
+
+ก่อนรันคำสั่งจริง ให้ทำตามลำดับนี้:
+
+1. หยุดการเขียนข้อมูลชั่วคราวหรือกำหนด maintenance window แล้วทำ MySQL dump/snapshot ที่กู้คืนได้ โดยใช้ค่าฐานข้อมูลจาก `.env` ของเครื่องตนเองและไม่พิมพ์รหัสผ่านลงในคำสั่ง ตัวอย่าง XAMPP ที่ให้โปรแกรมถามรหัสผ่าน:
+
+```powershell
+C:\xampp\mysql\bin\mysqldump.exe --single-transaction --routines --triggers -u root -p --result-file=C:\backup\rai-khaisaeng-before-slip-migration.sql maeyangha_shop
+```
+
+สร้างโฟลเดอร์ปลายทางก่อน และคัดลอกไฟล์ dump ที่ได้ไปยังพื้นที่ backup ภายนอก/แยกจากเครื่องแอปทันที ตัวอย่าง path ข้างต้นไม่มีรหัสผ่านและ `-p` จะให้กรอกรหัสผ่านแบบไม่แสดงบนหน้าจอ
+
+2. คัดลอกโฟลเดอร์สลิปทั้งฝั่ง public และ private ไปยัง disk/bucket/snapshot ภายนอกเครื่อง Deploy โดยเก็บโครงสร้าง path เดิมครบถ้วน:
+
+```text
+storage/app/public/slips/
+storage/app/public/payment_slips/
+storage/app/private/payment_slips/
+```
+
+หากบางโฟลเดอร์ยังไม่มี ให้บันทึกไว้ในหลักฐาน backup ว่าไม่มีไฟล์ก่อน migration ห้ามเก็บ backup ไว้เพียงใน filesystem เดียวกับแอป
+
+3. ทดสอบ restore dump ไปยังฐานข้อมูลทดสอบที่แยกจากฐานจริงและยืนยันว่า restore ไม่มี error จากนั้นเทียบจำนวนแถวใน `payments` และสุ่มตรวจค่า `slip_disk`/`slip_path` กับไฟล์ในสำเนาภายนอก รวมทั้งตรวจขนาดหรือ checksum ของไฟล์ตัวอย่าง ต้องผ่านก่อนรัน migration จริง
+
+4. รัน dry-run เพื่อตรวจรายการ โดยยังไม่ย้ายหรือลบไฟล์:
 
 ```powershell
 C:\xampp\php\php.exe artisan payments:migrate-slips-private --dry-run
 ```
 
-3. ตรวจผลลัพธ์และจำนวน failed ให้เป็น 0 แล้วจึงรันจริง:
+5. ตรวจผลลัพธ์และจำนวน failed ให้เป็น 0 แล้วจึงรันจริง:
 
 ```powershell
 C:\xampp\php\php.exe artisan payments:migrate-slips-private
 ```
 
-หากมี failed ห้ามลบไฟล์สลิปต้นทางเอง ให้ตรวจ backup และสาเหตุก่อนรันซ้ำ
+6. หลังรัน ตรวจว่า failed เป็น 0, payment metadata ชี้ไป `local:payment_slips/...`, ผู้ดูแลที่มีสิทธิ์เปิดไฟล์ตัวอย่างได้ และไฟล์สำเนาภายนอกยัง restore ได้ อย่าลบ backup จนกว่าจะพ้นระยะเวลาการเก็บรักษาที่กำหนด
+
+หากมี failed ห้ามลบไฟล์สลิปต้นทางเอง ให้หยุด ตรวจ backup/log และแก้สาเหตุก่อนรันซ้ำ
 
 ### รักษาความลับของ `.env`
 
@@ -248,6 +311,7 @@ npm run build
 ```powershell
 composer install
 copy .env.example .env
+# เปิด .env แล้วตั้งค่า Local ตามหัวข้อ 5 ก่อนรัน artisan
 C:\xampp\php\php.exe artisan key:generate
 C:\xampp\php\php.exe artisan migrate --seed
 C:\xampp\php\php.exe artisan storage:link
@@ -263,6 +327,8 @@ C:\xampp\php\php.exe artisan serve --host=127.0.0.1 --port=8000
 เพิ่มชุดข้อมูลทดสอบระบบแบบสมจริง สำหรับใช้ Demo / Test / ตรวจ Dashboard และ Report
 
 ### ข้อมูลที่มีใน Seeder
+
+ส่วนนี้ใช้สำหรับ Local/Demo เท่านั้น Production จริงต้องคง `APP_ENV=production` และ `ALLOW_DEMO_SEED=false` เพราะการเปิด Demo seed จะล้างและสร้างข้อมูลทดสอบจำนวนมาก
 
 - ผู้ใช้งานทดสอบ 60+ คน
 - บัญชีทดสอบ `user_test@khaisaeng.test`, `admin_test@khaisaeng.test`, `sbadmin_test@khaisaeng.test`
@@ -320,6 +386,7 @@ storage/app/public/slips/demo-slip-*.svg
 ```powershell
 composer install
 copy .env.example .env
+# เปิด .env แล้วตั้งค่า Local ตามหัวข้อ 5 ก่อนรัน artisan
 C:\xampp\php\php.exe artisan key:generate
 C:\xampp\php\php.exe artisan migrate:fresh --seed
 C:\xampp\php\php.exe artisan storage:link
@@ -343,6 +410,7 @@ npm run build
 ```powershell
 composer install
 copy .env.example .env
+# เปิด .env แล้วตั้งค่า Local ตามหัวข้อ 5 ก่อนรัน artisan
 C:\xampp\php\php.exe artisan key:generate
 C:\xampp\php\php.exe artisan storage:link
 C:\xampp\php\php.exe artisan migrate:fresh --seed
