@@ -425,7 +425,7 @@ class PaymentWorkflowTest extends TestCase
         $this->assertDatabaseCount('activity_logs', 0);
     }
 
-    public function test_cod_checkout_confirms_the_order_without_expiry_and_preserves_totals_and_stock(): void
+    public function test_cod_checkout_accepts_omitted_optional_tax_fields_without_expiry_and_preserves_totals_and_stock(): void
     {
         $member = $this->createUser('member');
         $province = ThaiProvince::create(['name_th' => 'เชียงใหม่', 'name_en' => 'Chiang Mai']);
@@ -474,12 +474,9 @@ class PaymentWorkflowTest extends TestCase
             'subdistrict' => 'ศรีภูมิ',
             'postal_code' => '50200',
             'payment_method' => 'cod',
-            'needs_tax_invoice' => false,
-            'customer_tax_id' => null,
-            'customer_tax_name' => null,
-            'customer_tax_address' => null,
         ]);
 
+        $response->assertRedirect();
         $order = Order::where('user_id', $member->id)->sole();
         $response->assertRedirect(route('member.orders.show', $order))->assertSessionHas('success');
         $this->assertSame('confirmed', $order->status);

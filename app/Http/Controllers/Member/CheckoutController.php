@@ -171,7 +171,7 @@ class CheckoutController extends Controller
                 'needs_tax_invoice' => (bool) ($d['needs_tax_invoice'] ?? false),
                 'customer_tax_id' => $d['customer_tax_id'] ?? null,
                 'customer_tax_name' => $d['customer_tax_name'] ?? null,
-                'customer_tax_address' => $d['customer_tax_address'] ?: null,
+                'customer_tax_address' => ($d['customer_tax_address'] ?? null) ?: null,
                 'ordered_at' => now(),
                 'expires_at' => $isCashOnDelivery ? null : now()->addDay(),
             ]);
