@@ -2,18 +2,9 @@
 @section('title','คำสั่งซื้อ')
 @section('content')
 @php
-$statusLabels=[
-    'pending_payment'=>'รอชำระเงิน',
-    'paid'=>'ชำระเงินแล้ว',
-    'preparing'=>'เตรียมสินค้า',
-    'packed'=>'จัดเสร็จแล้ว',
-    'shipped'=>'กำลังจัดส่ง',
-    'delivered'=>'จัดส่งแล้ว',
-    'delivery_failed'=>'จัดส่งไม่สำเร็จ',
-    'cancelled'=>'ยกเลิก',
-];
+$statusLabels=\App\Models\Order::statusLabels();
 $statusClass=[
-    'pending_payment'=>'warning','paid'=>'success','preparing'=>'info','packed'=>'secondary',
+    'pending_payment'=>'warning','confirmed'=>'primary','paid'=>'success','preparing'=>'info','packed'=>'secondary',
     'shipped'=>'primary','delivered'=>'success','delivery_failed'=>'danger','cancelled'=>'dark'
 ];
 $current=request('status');
@@ -21,6 +12,7 @@ $current=request('status');
 <div class="order-status-summary mb-4">
     <div class="status-card"><div class="text-muted small">ออเดอร์ทั้งหมด</div><h3>{{number_format($summary['total'] ?? $orders->total())}}</h3></div>
     <div class="status-card warning"><div class="text-muted small">รอชำระเงิน</div><h3>{{number_format($summary['pending'] ?? 0)}}</h3></div>
+    <div class="status-card primary"><div class="text-muted small">ยืนยันแล้ว</div><h3>{{number_format($summary['confirmed'] ?? 0)}}</h3></div>
     <div class="status-card success"><div class="text-muted small">ชำระเงินแล้ว</div><h3>{{number_format($summary['paid'] ?? 0)}}</h3></div>
     <div class="status-card info"><div class="text-muted small">เตรียมสินค้า</div><h3>{{number_format($summary['preparing'] ?? 0)}}</h3></div>
     <div class="status-card secondary"><div class="text-muted small">จัดเสร็จแล้ว</div><h3>{{number_format($summary['packed'] ?? 0)}}</h3></div>
@@ -47,17 +39,21 @@ $current=request('status');
         <div class="col-lg-2"><button class="btn btn-danger rounded-pill w-100">ค้นหา</button></div>
     </form>
 </div>
-<form method="post" action="{{route('admin.orders.bulkUpdate')}}" class="preserve-scroll-form" data-scroll-key="admin-orders-scroll">
+<form method="post" action="{{route('admin.orders.bulkUpdate')}}" class="preserve-scroll-form" data-scroll-key="admin-orders-scroll" id="orderBulkForm">
 @csrf @method('patch')
 <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
-    <span class="text-muted fw-bold">เปลี่ยนสถานะ</span>
-    <button class="btn btn-danger rounded-pill px-4 fw-bold"><i class="bi bi-save"></i> บันทึกทั้งหมด</button>
+    <span class="text-muted fw-bold" id="orderDirtyStatus">ยังไม่มีรายการที่แก้ไข</span>
+    <button class="btn btn-danger rounded-pill px-4 fw-bold" id="saveOrderChanges" disabled><i class="bi bi-save"></i> บันทึกรายการที่แก้</button>
 </div>
 <div class="table-responsive content-card p-0">
 <table class="table table-hover align-middle mb-0 order-table">
 <thead class="table-light"><tr><th>วันที่</th><th>เลขออเดอร์</th><th>ลูกค้า</th><th>ยอดเงิน</th><th>ชำระเงิน</th><th>จัดส่ง</th><th>สถานะ</th><th>เปลี่ยนสถานะ</th><th class="text-end">จัดการ</th></tr></thead>
 <tbody>
 @forelse($orders as $o)
+@php
+$options=$statusOptions[$o->id] ?? [$o->status];
+$hasStatusTargets=count($options)>1;
+@endphp
 <tr>
     <td class="text-nowrap">{{optional($o->ordered_at ?? $o->created_at)->format('d/m/Y H:i')}}</td>
     <td class="text-nowrap fw-bold"><a href="{{route('admin.orders.show',$o)}}">{{$o->order_number}}</a></td>
@@ -67,8 +63,8 @@ $current=request('status');
     <td class="text-nowrap">{{$o->shipment->tracking_number ? 'Tracking: '.$o->shipment->tracking_number : '-'}}</td>
     <td class="text-nowrap"><span class="badge bg-{{$statusClass[$o->status] ?? 'secondary'}}">{{$statusLabels[$o->status] ?? $o->status}}</span></td>
     <td class="text-nowrap">
-        <select name="statuses[{{$o->id}}]" class="form-select form-select-sm rounded-pill order-status-select">
-            @foreach($statusLabels as $key=>$label)<option value="{{$key}}" @selected($o->status===$key)>{{$label}}</option>@endforeach
+        <select name="statuses[{{$o->id}}]" class="form-select form-select-sm rounded-pill order-status-select" data-original="{{$o->status}}" @disabled(!$hasStatusTargets)>
+            @foreach($options as $key)<option value="{{$key}}" @selected($o->status===$key)>{{$statusLabels[$key] ?? $key}}</option>@endforeach
         </select>
     </td>
     <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-danger rounded-pill px-3" href="{{route('admin.orders.show',$o)}}">รายละเอียด</a></td>
@@ -89,9 +85,22 @@ $current=request('status');
   const key='admin-orders-scroll';
   const saved=sessionStorage.getItem(key);
   if(saved){ setTimeout(()=>{window.scrollTo(0, parseInt(saved,10)||0); sessionStorage.removeItem(key);}, 80); }
-  document.querySelectorAll('.preserve-scroll-form').forEach(form=>{
+document.querySelectorAll('.preserve-scroll-form').forEach(form=>{
     form.addEventListener('submit',()=>sessionStorage.setItem(form.dataset.scrollKey||key, String(window.scrollY)));
   });
 })();
+const orderSelects=[...document.querySelectorAll('.order-status-select')];
+const saveOrderChanges=document.getElementById('saveOrderChanges');
+const orderDirtyStatus=document.getElementById('orderDirtyStatus');
+function syncOrderChanges(){
+    const changed=orderSelects.filter(select=>!select.disabled && select.value!==select.dataset.original);
+    saveOrderChanges.disabled=changed.length===0;
+    orderDirtyStatus.textContent=changed.length ? `แก้ไขแล้ว ${changed.length} รายการ` : 'ยังไม่มีรายการที่แก้ไข';
+}
+orderSelects.forEach(select=>select.addEventListener('change',syncOrderChanges));
+document.getElementById('orderBulkForm')?.addEventListener('submit',event=>{
+    if(saveOrderChanges.disabled){ event.preventDefault(); return; }
+    orderSelects.forEach(select=>{if(!select.disabled && select.value===select.dataset.original) select.disabled=true;});
+});
 </script>
 @endsection

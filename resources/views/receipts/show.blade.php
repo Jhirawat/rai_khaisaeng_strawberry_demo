@@ -20,8 +20,9 @@ body{background:#f3f4f6;font-family:'Segoe UI',Tahoma,sans-serif;color:#111827}.
 @media print{.company-address-line{gap:4px;}}
 </style>
 
+<style>.demo-document-notice{margin:-4mm -4mm 8mm;padding:10px 14px;border:2px solid #d97706;background:#fff7ed;color:#9a3412;text-align:center;font-weight:800;border-radius:10px}@media(max-width:850px){.receipt-a4{width:100%;min-height:auto;margin:0;padding:18px;border-radius:0;overflow-x:auto}.no-print{width:auto;margin:14px;display:flex;flex-wrap:wrap;gap:8px}.receipt-header-v2.compact-header{grid-template-columns:1fr!important}.doc-right-panel{justify-self:stretch;max-width:none}.doc-title-v2.single-line-title{text-align:left!important;white-space:normal}.doc-info-v2{display:block;min-width:0}.buyer-grid,.summary-section-v2{grid-template-columns:1fr}.items-table{min-width:760px}}@media print{.demo-document-notice{border-color:#777;color:#555;background:#fff}}</style>
 </head>
 <body>
 @include('receipts._receipt_body')
-<div class="no-print"><a class="btn" href="javascript:history.back()">กลับ</a><button class="btn" onclick="window.print()">พิมพ์</button><a class="btn primary" href="{{route('receipts.download',$order)}}">ดาวน์โหลด PDF</a></div>
+<div class="no-print"><a class="btn" href="{{in_array(auth()->user()->role ?? 'member',['admin','super_admin'],true) ? route('admin.orders.show',$order) : route('member.orders.show',$order)}}">กลับไปที่ออเดอร์</a><button class="btn" onclick="window.print()">พิมพ์</button><a class="btn primary" href="{{route('receipts.download',$order)}}">ดาวน์โหลด PDF</a></div>
 </body></html>

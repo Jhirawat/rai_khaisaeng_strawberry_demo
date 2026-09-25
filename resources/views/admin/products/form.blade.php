@@ -31,23 +31,13 @@
                 <div class="col-md-3"><label class="form-label">ขั้นต่ำแจ้งเตือน</label><input class="form-control rounded-3" name="low_stock_threshold" value="{{old('low_stock_threshold',$product->inventory->low_stock_threshold??10)}}" inputmode="numeric"></div>
             </div>
         </div>
-        <div class="content-card p-4 mb-4">
-            <h5 class="fw-bold mb-3">ตัวเลือกสินค้า / การจัดส่ง</h5>
-            <div class="alert alert-light border mb-3">รองรับการต่อยอด Variants เช่น ขนาด สี โมเดล แยกราคาและรูปภาพในอนาคต</div>
-            <div class="row g-3">
-                <div class="col-md-3"><label class="form-label">น้ำหนัก (กรัม)</label><input class="form-control rounded-3" placeholder="เช่น 500"></div>
-                <div class="col-md-3"><label class="form-label">กว้าง (ซม.)</label><input class="form-control rounded-3"></div>
-                <div class="col-md-3"><label class="form-label">ยาว (ซม.)</label><input class="form-control rounded-3"></div>
-                <div class="col-md-3"><label class="form-label">สูง (ซม.)</label><input class="form-control rounded-3"></div>
-            </div>
-        </div>
     </div>
     <div class="col-lg-4">
         <div class="content-card p-4 mb-4">
             <h5 class="fw-bold mb-3">รูปภาพสินค้า</h5>
             <label class="upload-box w-100 text-center" for="productImagesInput">
                 <i class="bi bi-cloud-arrow-up display-5 text-danger"></i>
-                <div class="fw-bold mt-2">ลากวางหรือเลือกไฟล์</div>
+                <div class="fw-bold mt-2">เลือกไฟล์รูปภาพ</div>
                 <div class="text-muted small">รูปแรกจะใช้เป็นรูปหลัก / แสดงตัวอย่างทันที</div>
                 <input id="productImagesInput" type="file" name="images[]" multiple accept="image/*" class="d-none">
             </label>
@@ -85,11 +75,6 @@
             <div class="mb-3"><label class="form-label">หมวดหมู่</label><select name="category_id" class="form-select rounded-3">@foreach($categories as $c)<option value="{{$c->id}}" @selected(($product->category_id??'')==$c->id)>{{$c->name}}</option>@endforeach</select></div>
             <div class="mb-3"><label class="form-label">สถานะการมองเห็น</label><select name="status" class="form-select rounded-3"><option value="active" @selected(old('status',$product->status??'active')==='active')>Published / พร้อมขาย</option><option value="inactive" @selected(old('status',$product->status??'active')==='inactive')>Hidden / ปิดการขาย</option></select></div>
             <label class="form-check"><input class="form-check-input" type="checkbox" name="featured" @checked(old('featured',$product->featured??false))> <span class="form-check-label">สินค้าแนะนำ</span></label>
-        </div>
-        <div class="content-card p-4 mb-4">
-            <h5 class="fw-bold mb-3">SEO Settings</h5>
-            <input class="form-control rounded-3 mb-2" placeholder="Meta Title">
-            <textarea class="form-control rounded-3" rows="3" placeholder="Meta Description"></textarea>
         </div>
     </div>
 </div>

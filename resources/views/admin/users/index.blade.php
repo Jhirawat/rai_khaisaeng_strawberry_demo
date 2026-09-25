@@ -5,7 +5,7 @@
 .user-card{border:0;border-radius:22px;box-shadow:0 10px 30px rgba(20,30,60,.07)}
 .user-stat{background:#fff;border-radius:18px;padding:1.1rem 1.25rem;box-shadow:0 8px 25px rgba(20,30,60,.06);border-left:6px solid #dc3545}.user-stat .num{font-size:2rem;font-weight:900}.avatar-circle{width:46px;height:46px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#ffe5e9;color:#dc3545;font-weight:900}.role-badge{border-radius:999px;padding:.42rem .7rem;font-weight:800}.role-super_admin{background:#dc3545;color:#fff}.role-admin{background:#ff6b6b;color:#fff}.role-staff{background:#0d6efd;color:#fff}.role-member{background:#198754;color:#fff}.status-pill{border-radius:999px;padding:.38rem .75rem;font-weight:800}.table thead th{white-space:nowrap}.table td{vertical-align:middle}.action-stack{display:flex;gap:.4rem;flex-wrap:wrap}.btn-soft{border:1px solid #dee2e6;background:#fff;border-radius:999px;padding:.38rem .75rem}
 </style>
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
   <div>
     <div class="text-muted">หน้าหลัก &gt; จัดการผู้ใช้งาน</div>
     <h2 class="fw-bold mb-1">จัดการผู้ใช้งาน</h2>
@@ -31,12 +31,11 @@
 <div class="card user-card">
   <div class="table-responsive">
     <table class="table align-middle mb-0">
-      <thead class="table-light"><tr><th><input type="checkbox"></th><th>โปรไฟล์</th><th>อีเมล / เบอร์โทร</th><th>บทบาท</th><th>ใช้งานล่าสุด</th><th>สถานะ</th><th class="text-end">จัดการ</th></tr></thead>
+      <thead class="table-light"><tr><th>โปรไฟล์</th><th>อีเมล / เบอร์โทร</th><th>บทบาท</th><th>แก้ไขล่าสุด</th><th>สถานะ</th><th class="text-end">จัดการ</th></tr></thead>
       <tbody>
       @forelse($users as $u)
         <tr>
-          <td><input type="checkbox" value="{{$u->id}}"></td>
-          <td><div class="d-flex align-items-center gap-3"><div class="avatar-circle">{{ mb_substr($u->name,0,1) }}</div><div><div class="fw-bold">{{ $u->name }}</div><div class="text-muted small">User ID: #{{ $u->id }}</div></div></div></td>
+          <td><div class="d-flex align-items-center gap-3"><div class="avatar-circle">{{ mb_substr($u->name,0,1) }}</div><div><div class="fw-bold">{{ $u->name }}</div><div class="text-muted small">User ID: #{{ $u->id }}</div>@if($u->orders_count > 0)<div class="small text-warning-emphasis"><i class="bi bi-shield-lock"></i> มีประวัติคำสั่งซื้อ · ระงับบัญชีแทน</div>@endif</div></div></td>
           <td><div>{{ $u->email }}</div><div class="text-muted small">{{ $u->phone ?: '-' }}</div></td>
           <td><span class="role-badge role-{{ $u->role }}">{{ str_replace('_',' ', $u->role) }}</span></td>
           <td><span class="text-muted">{{ optional($u->updated_at)->format('d/m/Y H:i') }}</span></td>
@@ -44,16 +43,16 @@
           <td class="text-end"><div class="action-stack justify-content-end">
             <a class="btn btn-soft" href="{{ route('admin.users.show',$u) }}"><i class="bi bi-eye"></i> ดู</a>
             <a class="btn btn-soft" href="{{ route('admin.users.edit',$u) }}"><i class="bi bi-pencil"></i> แก้ไข</a>
-            <form method="post" action="{{ route('admin.users.resetPassword',$u) }}" onsubmit="return confirm('รีเซ็ตรหัสผ่านผู้ใช้นี้เป็น password ?')">@csrf<button class="btn btn-outline-warning rounded-pill"><i class="bi bi-key"></i> รีเซ็ต</button></form>
+            <form method="post" action="{{ route('admin.users.resetPassword',$u) }}" onsubmit="return confirm('สร้างรหัสผ่านชั่วคราวแบบสุ่มให้ผู้ใช้นี้?')">@csrf<button class="btn btn-outline-warning rounded-pill"><i class="bi bi-key"></i> รหัสชั่วคราว</button></form>
             <form method="post" action="{{ route('admin.users.toggleStatus',$u) }}" onsubmit="return confirm('ยืนยันเปลี่ยนสถานะบัญชีนี้?')">@csrf @method('patch')<button class="btn btn-outline-secondary rounded-pill">{{ $u->is_active ? 'ระงับ' : 'เปิดใช้' }}</button></form>
           </div></td>
         </tr>
       @empty
-        <tr><td colspan="7" class="text-center py-5 text-muted">ไม่พบผู้ใช้งาน</td></tr>
+        <tr><td colspan="6" class="text-center py-5 text-muted">ไม่พบผู้ใช้งาน</td></tr>
       @endforelse
       </tbody>
     </table>
   </div>
-  <div class="p-3 d-flex justify-content-between align-items-center"><div class="text-muted">ทั้งหมด {{ $users->total() }} รายการ</div>{{ $users->links('pagination::bootstrap-5') }}</div>
+  <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-3"><div class="text-muted">ทั้งหมด {{ $users->total() }} รายการ</div>{{ $users->links('pagination::bootstrap-5') }}</div>
 </div>
 @endsection

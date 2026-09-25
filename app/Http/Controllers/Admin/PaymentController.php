@@ -1,24 +1,215 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
+
+use App\Exceptions\InvalidOrderTransition;
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use App\Models\Payment;
+use App\Services\OrderWorkflowService;
 use App\Support\ActivityLogger;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-class PaymentController extends Controller{
- public function index(){return view('admin.payments.index',['payments'=>Payment::with('order.user')->latest()->paginate(20)]);} 
- public function approve(Payment $payment){
-  if(in_array($payment->status,['approved','rejected'],true)) return back()->with('success','รายการนี้ถูกตรวจสอบแล้ว');
-  $payment->update(['status'=>'approved','verified_by'=>auth()->id(),'verified_at'=>now()]);
-  $payment->order->update(['payment_status'=>'approved','status'=>'paid']);
-  ActivityLogger::log('payment.approved', $payment, ['order'=>$payment->order->order_number ?? $payment->order_id]);
-  return back()->with('success','อนุมัติการชำระเงินแล้ว');
- }
- public function reject(Request $r,Payment $payment){
-  $d=$r->validate(['reject_reason'=>'nullable|string|max:1000']);
-  if(in_array($payment->status,['approved','rejected'],true)) return back()->with('success','รายการนี้ถูกตรวจสอบแล้ว');
-  $payment->update(['status'=>'rejected','reject_reason'=>$d['reject_reason'] ?? null,'verified_by'=>auth()->id(),'verified_at'=>now()]);
-  $payment->order->update(['payment_status'=>'rejected']);
-  ActivityLogger::log('payment.rejected', $payment, ['order'=>$payment->order->order_number ?? $payment->order_id, 'reason'=>$d['reject_reason'] ?? null]);
-  return back()->with('success','ปฏิเสธการชำระเงินแล้ว');
- }
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class PaymentController extends Controller
+{
+    public function __construct(private readonly OrderWorkflowService $workflow) {}
+
+    public function index()
+    {
+        return view('admin.payments.index', [
+            'payments' => Payment::with('order.user')->latest()->paginate(20),
+        ]);
+    }
+
+    public function slip(Payment $payment): StreamedResponse
+    {
+        $diskName = $payment->slip_disk;
+        $path = $payment->slip_path;
+
+        abort_unless(
+            is_string($diskName)
+                && is_string($path)
+                && $this->isAllowedSlipLocation($diskName, $path),
+            404,
+        );
+
+        $disk = Storage::disk($diskName);
+        abort_unless($disk->exists($path), 404);
+
+        $mimeType = $disk->mimeType($path);
+        $extension = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/svg+xml' => 'svg',
+        ][$mimeType] ?? null;
+        abort_unless($extension !== null, 404);
+
+        return $disk->response($path, "payment-slip.{$extension}", [
+            'Content-Type' => $mimeType,
+            'Cache-Control' => 'private, no-store',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'X-Content-Type-Options' => 'nosniff',
+        ], 'inline');
+    }
+
+    public function approve(Request $request, Payment $payment): RedirectResponse
+    {
+        try {
+            $result = DB::transaction(function () use ($payment, $request): array {
+                $lockedOrder = Order::query()->lockForUpdate()->findOrFail($payment->order_id);
+                $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->getKey());
+
+                if ((int) $lockedPayment->order_id !== (int) $lockedOrder->getKey()) {
+                    return ['status' => 'mismatched_order'];
+                }
+
+                if (! in_array($lockedPayment->method, ['bank_transfer', 'qr'], true)) {
+                    return ['status' => 'invalid_method'];
+                }
+
+                if ($lockedPayment->status !== 'pending') {
+                    return ['status' => 'already_reviewed'];
+                }
+
+                if ($lockedOrder->status !== 'pending_payment') {
+                    return ['status' => 'invalid_order'];
+                }
+
+                $lockedOrder->forceFill(['payment_status' => 'approved'])->save();
+                $lockedPayment->forceFill([
+                    'status' => 'approved',
+                    'verified_by' => $request->user()?->getKey(),
+                    'verified_at' => now(),
+                ])->save();
+
+                $approvedOrder = $this->workflow->transition(
+                    $lockedOrder,
+                    'paid',
+                    $request->user(),
+                    'payment_approval',
+                );
+
+                return [
+                    'status' => 'reviewed',
+                    'payment' => $lockedPayment->fresh(),
+                    'order_number' => $approvedOrder->order_number,
+                ];
+            });
+        } catch (InvalidOrderTransition $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        if ($result['status'] === 'already_reviewed') {
+            return back()->with('success', 'รายการนี้ถูกตรวจสอบแล้ว');
+        }
+
+        if ($result['status'] === 'mismatched_order') {
+            return back()->with('error', 'ข้อมูลการชำระเงินไม่ตรงกับคำสั่งซื้อ กรุณาลองใหม่');
+        }
+
+        if ($result['status'] === 'invalid_method') {
+            return back()->with('error', 'การชำระเงินปลายทางต้องยืนยันผ่านสถานะการจัดส่ง');
+        }
+
+        if ($result['status'] === 'invalid_order') {
+            return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดหรือดำเนินการต่อแล้วได้');
+        }
+
+        ActivityLogger::log('payment.approved', $result['payment'], [
+            'order' => $result['order_number'],
+        ]);
+
+        return back()->with('success', 'อนุมัติการชำระเงินแล้ว');
+    }
+
+    public function reject(Request $request, Payment $payment): RedirectResponse
+    {
+        $data = $request->validate([
+            'reject_reason' => 'nullable|string|max:1000',
+        ]);
+
+        $result = DB::transaction(function () use ($data, $payment, $request): array {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($payment->order_id);
+            $lockedPayment = Payment::query()->lockForUpdate()->findOrFail($payment->getKey());
+
+            if ((int) $lockedPayment->order_id !== (int) $lockedOrder->getKey()) {
+                return ['status' => 'mismatched_order'];
+            }
+
+            if (! in_array($lockedPayment->method, ['bank_transfer', 'qr'], true)) {
+                return ['status' => 'invalid_method'];
+            }
+
+            if ($lockedPayment->status !== 'pending') {
+                return ['status' => 'already_reviewed'];
+            }
+
+            if ($lockedOrder->status !== 'pending_payment') {
+                return ['status' => 'invalid_order'];
+            }
+
+            $lockedOrder->forceFill(['payment_status' => 'rejected'])->save();
+            $lockedPayment->forceFill([
+                'status' => 'rejected',
+                'reject_reason' => $data['reject_reason'] ?? null,
+                'verified_by' => $request->user()?->getKey(),
+                'verified_at' => now(),
+            ])->save();
+
+            return [
+                'status' => 'reviewed',
+                'payment' => $lockedPayment->fresh(),
+                'order_number' => $lockedOrder->order_number,
+            ];
+        });
+
+        if ($result['status'] === 'already_reviewed') {
+            return back()->with('success', 'รายการนี้ถูกตรวจสอบแล้ว');
+        }
+
+        if ($result['status'] === 'mismatched_order') {
+            return back()->with('error', 'ข้อมูลการชำระเงินไม่ตรงกับคำสั่งซื้อ กรุณาลองใหม่');
+        }
+
+        if ($result['status'] === 'invalid_method') {
+            return back()->with('error', 'การชำระเงินปลายทางต้องยืนยันผ่านสถานะการจัดส่ง');
+        }
+
+        if ($result['status'] === 'invalid_order') {
+            return back()->with('error', 'ไม่สามารถตรวจสอบการชำระเงินของคำสั่งซื้อที่สิ้นสุดหรือดำเนินการต่อแล้วได้');
+        }
+
+        ActivityLogger::log('payment.rejected', $result['payment'], [
+            'order' => $result['order_number'],
+            'reason' => $data['reject_reason'] ?? null,
+        ]);
+
+        return back()->with('success', 'ปฏิเสธการชำระเงินแล้ว');
+    }
+
+    private function isAllowedSlipLocation(string $disk, string $path): bool
+    {
+        $isSafeRelativePath = $path !== ''
+            && ! str_contains($path, "\0")
+            && ! str_contains($path, '\\')
+            && ! str_contains($path, '//')
+            && ! str_starts_with($path, '/')
+            && ! str_ends_with($path, '/')
+            && preg_match('/^[A-Za-z]:/', $path) !== 1
+            && preg_match('#(^|/)\.\.?(/|$)#', $path) !== 1;
+
+        if (! $isSafeRelativePath) {
+            return false;
+        }
+
+        return match ($disk) {
+            'local' => str_starts_with($path, 'payment_slips/'),
+            'public' => str_starts_with($path, 'payment_slips/') || str_starts_with($path, 'slips/'),
+            default => false,
+        };
+    }
 }

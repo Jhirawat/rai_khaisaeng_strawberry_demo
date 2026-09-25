@@ -11,7 +11,7 @@
         <td>{{$p->order->user->name ?? '-'}}</td>
         <td><span class="badge bg-info">{{['qr'=>'QR Code','bank_transfer'=>'โอนธนาคาร','cod'=>'เก็บเงินปลายทาง'][$p->method] ?? $p->method}}</span></td>
         <td class="fw-bold text-danger">฿{{number_format($p->amount,2)}}</td>
-        <td>@if($p->slip_path)<a target="_blank" href="{{asset('storage/'.$p->slip_path)}}"><img src="{{asset('storage/'.$p->slip_path)}}" style="width:80px;height:80px;object-fit:cover" class="rounded border"></a>@else<span class="text-muted">ไม่มีสลิป</span>@endif</td>
+        <td>@if($p->slip_path)<a target="_blank" rel="noopener noreferrer" href="{{route('admin.payments.slip',$p)}}"><img src="{{route('admin.payments.slip',$p)}}" style="width:80px;height:80px;object-fit:cover" class="rounded border"></a>@else<span class="text-muted">ไม่มีสลิป</span>@endif</td>
         <td>
             @php($ocrStatus = $p->slip_review_status ?? 'needs_review')
             @if($ocrStatus === 'verified_by_qr')
@@ -30,10 +30,12 @@
         </td>
         <td><span class="badge bg-{{$p->status==='approved'?'success':($p->status==='rejected'?'danger':'warning')}}">{{$p->status}}</span></td>
         <td class="text-end">
-            @if($p->status==='pending')
+            @if($p->status === 'pending' && $p->order->status === 'pending_payment' && in_array($p->method, ['bank_transfer', 'qr'], true))
             <form class="d-inline" method="post" action="{{route('admin.payments.approve',$p)}}">@csrf<button class="btn btn-success btn-sm rounded-pill">ยืนยันชำระสำเร็จ</button></form>
             <form class="d-inline" method="post" action="{{route('admin.payments.reject',$p)}}">@csrf<button class="btn btn-danger btn-sm rounded-pill">ปฏิเสธ</button></form>
-            @else
+            @elseif($p->method === 'cod')
+            <a class="btn btn-outline-primary btn-sm rounded-pill" href="{{route('admin.orders.show',$p->order)}}#shipping-workflow">จัดการการจัดส่ง / Shipping</a>
+            @elseif($p->order->canIssueReceipt())
             <a class="btn btn-outline-success btn-sm rounded-pill" href="{{route('receipts.show',$p->order)}}"><i class="bi bi-receipt"></i> ใบเสร็จ</a>
             @endif
         </td>

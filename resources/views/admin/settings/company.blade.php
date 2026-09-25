@@ -23,8 +23,9 @@
                 <div class="col-12"><label class="form-label">คำอธิบายกิจการ</label><input class="form-control rounded-pill" name="company_subtitle" value="{{old('company_subtitle',$settings['company_subtitle'])}}"></div>
                 <div class="col-12"><label class="form-label">ที่ตั้งภาษาไทย</label><textarea class="form-control rounded-4" name="company_address" rows="3">{{old('company_address',$settings['company_address'])}}</textarea></div>
                 <div class="col-12"><label class="form-label">ที่ตั้งภาษาอังกฤษ</label><textarea class="form-control rounded-4" name="company_address_en" rows="3">{{old('company_address_en',$settings['company_address_en'])}}</textarea></div>
-                <div class="col-md-6"><label class="form-label">เลขประจำตัวผู้เสียภาษี</label><input class="form-control rounded-pill" name="company_tax_id" value="{{old('company_tax_id',$settings['company_tax_id'])}}"></div>
+                <div class="col-md-6"><label class="form-label">เลขประจำตัวผู้เสียภาษี</label><input class="form-control rounded-pill" name="company_tax_id" value="{{old('company_tax_id',$settings['company_tax_id'])}}" inputmode="numeric"><div class="form-text">ต้องเป็นเลขจริง 13 หลักจึงจะนำใบเสร็จไปใช้งานจริงได้</div></div>
                 <div class="col-md-6"><label class="form-label">Email</label><input class="form-control rounded-pill" name="company_email" value="{{old('company_email',$settings['company_email'])}}"></div>
+                <div class="col-md-6"><label class="form-label">ชื่อผู้มีอำนาจลงนามในใบเสร็จ</label><input class="form-control rounded-pill" name="company_signatory_name" value="{{old('company_signatory_name',$settings['company_signatory_name'])}}" placeholder="ชื่อผู้ขายหรือผู้มีอำนาจลงนาม"></div>
                 <div class="col-12"><label class="form-label">ลิงก์ Google Maps</label><input class="form-control rounded-pill" name="company_map_url" value="{{old('company_map_url',$settings['company_map_url'])}}"></div>
             </div>
         </div>
@@ -88,12 +89,12 @@
         <div class="content-card p-4">
             <h5 class="fw-bold mb-3">ตัวอย่างข้อมูลบนใบเสร็จ</h5>
             <div class="border rounded-4 p-3 bg-light">
-                <h5 class="fw-bold mb-1">{{$settings['company_name']}}</h5>
-                <div>{{$settings['company_subtitle']}}</div>
-                <div class="small mt-2">{{$settings['company_address']}}</div>
-                <div class="small">เลขผู้เสียภาษี: {{$settings['company_tax_id']}}</div>
-                <div class="small">Email: {{$settings['company_email']}}</div>
-                <div class="small">โทร: {{$settings['company_phone_1']}}, {{$settings['company_phone_2']}}, {{$settings['company_phone_3']}}</div>
+                <h5 class="fw-bold mb-1" data-preview-field="company_name">{{$settings['company_name']}}</h5>
+                <div data-preview-field="company_subtitle">{{$settings['company_subtitle']}}</div>
+                <div class="small mt-2" data-preview-field="company_address">{{$settings['company_address']}}</div>
+                <div class="small">เลขผู้เสียภาษี: <span data-preview-field="company_tax_id">{{$settings['company_tax_id']}}</span></div>
+                <div class="small">Email: <span data-preview-field="company_email">{{$settings['company_email']}}</span></div>
+                <div class="small">โทร: <span data-preview-phones>{{$settings['company_phone_1']}}, {{$settings['company_phone_2']}}, {{$settings['company_phone_3']}}</span></div>
             </div>
         </div>
     </div>
@@ -103,4 +104,18 @@
     <button class="btn btn-danger rounded-pill px-5">บันทึกข้อมูลร้านค้า</button>
 </div>
 </form>
+<script>
+document.querySelectorAll('[data-preview-field]').forEach(output=>{
+    const input=document.querySelector(`[name="${output.dataset.previewField}"]`);
+    input?.addEventListener('input',()=>output.textContent=input.value || '—');
+});
+const phonePreview=document.querySelector('[data-preview-phones]');
+document.querySelectorAll('[name^="company_phone_"]:not([name$="_name"])').forEach(input=>input.addEventListener('input',()=>{
+    phonePreview.textContent=[1,2,3].map(i=>document.querySelector(`[name="company_phone_${i}"]`)?.value).filter(Boolean).join(', ') || '—';
+}));
+document.querySelectorAll('input[type="file"]').forEach(input=>input.addEventListener('change',()=>{
+    const image=input.parentElement?.querySelector('img') || input.nextElementSibling?.querySelector('img');
+    if(image && input.files?.[0]) image.src=URL.createObjectURL(input.files[0]);
+}));
+</script>
 @endsection

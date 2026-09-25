@@ -1,10 +1,15 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\ForeignKeyConstraintViolation;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
@@ -15,6 +20,7 @@ class UserController extends Controller
         $status = $request->get('status');
 
         $users = User::query()
+            ->withCount('orders')
             ->when($q, function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('name', 'like', "%{$q}%")
@@ -48,7 +54,7 @@ class UserController extends Controller
 
     public function create()
     {
-        return view('admin.users.form', ['user' => new User()]);
+        return view('admin.users.form', ['user' => new User]);
     }
 
     public function store(Request $request)
@@ -56,7 +62,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
-            'phone' => ['nullable','regex:/^[0-9]{9,10}$/'],
+            'phone' => ['nullable', 'regex:/^[0-9]{9,10}$/'],
             'address' => 'nullable|string|max:1000',
             'role' => 'required|in:member,staff,admin,super_admin',
             'is_active' => 'nullable|boolean',
@@ -65,13 +71,20 @@ class UserController extends Controller
         $data['password'] = Hash::make($data['password']);
         $data['is_active'] = $request->boolean('is_active');
         User::create($data);
+
         return redirect()->route('admin.users.index')->with('success', 'เพิ่มผู้ใช้งานเรียบร้อยแล้ว');
     }
 
     public function show(User $user)
     {
-        $user->load(['orders.items.product', 'addresses']);
-        return view('admin.users.show', compact('user'));
+        $user->load('addresses')->loadCount('orders');
+        $latestOrders = $user->orders()
+            ->with('items.product')
+            ->latest()
+            ->limit(10)
+            ->get();
+
+        return view('admin.users.show', compact('user', 'latestOrders'));
     }
 
     public function edit(User $user)
@@ -83,20 +96,24 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
-            'phone' => ['nullable','regex:/^[0-9]{9,10}$/'],
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
+            'phone' => ['nullable', 'regex:/^[0-9]{9,10}$/'],
             'address' => 'nullable|string|max:1000',
             'role' => 'required|in:member,staff,admin,super_admin',
             'is_active' => 'nullable|boolean',
             'password' => 'nullable|string|min:8',
         ]);
         $data['is_active'] = $request->boolean('is_active');
-        if (!empty($data['password'])) {
+        if ($user->id === auth()->id() && (! $data['is_active'] || $data['role'] !== $user->role)) {
+            return back()->withErrors(['role' => 'ไม่สามารถเปลี่ยนสิทธิ์หรือระงับบัญชีของตนเองได้'])->withInput();
+        }
+        if (! empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         } else {
             unset($data['password']);
         }
         $user->update($data);
+
         return redirect()->route('admin.users.show', $user)->with('success', 'อัปเดตข้อมูลผู้ใช้งานเรียบร้อยแล้ว');
     }
 
@@ -105,14 +122,20 @@ class UserController extends Controller
         if ($user->id === auth()->id()) {
             return back()->with('success', 'ไม่สามารถระงับบัญชีของตนเองได้');
         }
-        $user->update(['is_active' => !$user->is_active]);
+        $user->update(['is_active' => ! $user->is_active]);
+
         return back()->with('success', $user->is_active ? 'เปิดใช้งานบัญชีแล้ว' : 'ระงับบัญชีแล้ว');
     }
 
     public function resetPassword(User $user)
     {
-        $user->update(['password' => Hash::make('password')]);
-        return back()->with('success', 'รีเซ็ตรหัสผ่านเป็น password แล้ว');
+        $temporaryPassword = Str::password(16);
+        $user->update([
+            'password' => Hash::make($temporaryPassword),
+            'remember_token' => Str::random(60),
+        ]);
+
+        return back()->with('success', 'สร้างรหัสผ่านชั่วคราวแล้ว: '.$temporaryPassword.' กรุณาคัดลอกและส่งให้ผู้ใช้ผ่านช่องทางที่ปลอดภัย รหัสนี้จะแสดงครั้งเดียว');
     }
 
     public function destroy(User $user)
@@ -120,7 +143,29 @@ class UserController extends Controller
         if ($user->id === auth()->id()) {
             return back()->with('success', 'ไม่สามารถลบบัญชีของตนเองได้');
         }
-        $user->delete();
+
+        try {
+            $deleted = DB::transaction(function () use ($user): bool {
+                $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+
+                if ($lockedUser->orders()->exists()) {
+                    return false;
+                }
+
+                return (bool) $lockedUser->delete();
+            });
+        } catch (QueryException $exception) {
+            if (! ForeignKeyConstraintViolation::causedBy($exception)) {
+                throw $exception;
+            }
+
+            return back()->with('error', 'ไม่สามารถลบสมาชิกได้ เนื่องจากมีข้อมูลที่เกี่ยวข้อง กรุณาระงับบัญชีแทน');
+        }
+
+        if (! $deleted) {
+            return back()->with('error', 'ไม่สามารถลบสมาชิกที่มีประวัติคำสั่งซื้อได้ กรุณาระงับบัญชีแทน');
+        }
+
         return redirect()->route('admin.users.index')->with('success', 'ลบผู้ใช้งานเรียบร้อยแล้ว');
     }
 }

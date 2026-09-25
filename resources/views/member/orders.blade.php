@@ -51,6 +51,7 @@
                         </tbody>
                     </table>
                 </div>
+                @if($orders->hasPages())<div class="mt-4">{{$orders->links('pagination::bootstrap-5')}}</div>@endif
             </div>
         </div>
     </div>

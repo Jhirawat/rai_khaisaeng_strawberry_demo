@@ -19,6 +19,7 @@ $logoPath = public_path($logoSetting ?: ($company['receipt_logo'] ?? 'images/log
 $logoSrc = file_exists($logoPath) ? 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath)) : '';
 @endphp
 <div class="receipt-a4">
+    @if($company['is_demo_document'] ?? false)<div class="demo-document-notice">เอกสารตัวอย่าง · กรุณาตั้งค่าเลขประจำตัวผู้เสียภาษีและอีเมลจริงก่อนนำไปใช้</div>@endif
     <div class="receipt-header-v2 compact-header">
         <div class="logo-panel company-under-logo">
             @if($logoSrc)<img class="receipt-logo-v2" src="{{$logoSrc}}" alt="logo">@endif
@@ -113,7 +114,7 @@ $logoSrc = file_exists($logoPath) ? 'data:image/png;base64,'.base64_encode(file_
         <div class="signature-box-v2">
             <div class="sign-line"></div>
             <div class="sig-title">ลงชื่อผู้ขาย</div>
-            <div class="small-muted">( {{auth()->user()->name ?? 'ผู้ขาย'}} )</div>
+            <div class="small-muted">( {{$company['company_signatory_name'] ?? 'ผู้มีอำนาจลงนาม'}} )</div>
             <div>วันที่ ____/____/________</div>
         </div>
         <div class="signature-box-v2">

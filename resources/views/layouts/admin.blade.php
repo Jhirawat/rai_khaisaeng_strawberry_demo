@@ -45,6 +45,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="{{ asset('css/responsive-v24.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/admin-refresh.css') }}">
     <style>
         :root{--admin-primary:{{$adminTheme['admin_sidebar_start']}};--admin-primary-dark:{{$adminTheme['admin_sidebar_end']}};--admin-accent:{{$adminTheme['admin_accent']}};--admin-bg:{{$adminTheme['admin_background']}};--admin-card:{{$adminTheme['admin_card']}};--admin-text:{{$adminTheme['admin_text']}};--admin-soft:#eef5f2}
         body{background:var(--admin-bg);font-family:'Prompt','Inter','Kanit','Bai Jamjuree','Roboto','Segoe UI',Tahoma,sans-serif;color:var(--admin-text)}.admin-sidebar{width:280px;min-height:100vh;background:linear-gradient(180deg,var(--admin-primary),var(--admin-primary-dark));position:sticky;top:0}.admin-sidebar a{color:#f7fffb;text-decoration:none;border-radius:14px;padding:.72rem 1rem;display:flex;align-items:center;gap:.35rem;margin:.22rem 0;font-weight:650;position:relative}.admin-sidebar a .nav-text{flex:1}.admin-notify-badge{background:#fff;color:var(--admin-accent);border-radius:999px;min-width:1.45rem;height:1.45rem;padding:0 .35rem;display:inline-flex;align-items:center;justify-content:center;font-size:.76rem;font-weight:900;box-shadow:0 3px 9px rgba(0,0,0,.15)}.admin-sidebar a:hover,.admin-sidebar a.active{background:rgba(255,255,255,.14)}.brand-admin{font-weight:900;font-size:1.35rem}.admin-logo{width:120px;max-width:100%;height:auto;display:block;margin-bottom:.45rem}.content-card{background:var(--admin-card);border-radius:20px;box-shadow:0 10px 32px rgba(28,65,54,.07)}.admin-topbar{background:var(--admin-card);border-radius:20px;box-shadow:0 10px 32px rgba(28,65,54,.06);padding:1rem 1.25rem}.btn-danger,.bg-danger{background:var(--admin-accent)!important;border-color:var(--admin-accent)!important}.text-danger{color:var(--admin-accent)!important}.badge-admin{background:#e5f1ed;color:var(--admin-primary);border:1px solid #c7ded5}.btn{line-height:1.45;display:inline-flex;align-items:center;justify-content:center;gap:.35rem}.btn-admin{background:var(--admin-primary);border-color:var(--admin-primary);color:#fff}.btn-admin:hover{background:var(--admin-primary-dark);border-color:var(--admin-primary-dark);color:#fff}.btn-sm{line-height:1.45}.rounded-pill.btn,.btn.rounded-pill{min-height:2.45rem}.table .btn-sm.rounded-pill{min-height:2.15rem;padding-top:.38rem;padding-bottom:.38rem}.badge,.admin-notify-badge{line-height:1.35}.status-tabs .btn,.order-status-tabs .btn,.filter-tabs .btn{align-items:center;min-height:2.55rem}.metric-card{border-left:6px solid var(--admin-primary)}.metric-card.warning{border-color:#f4b000}.metric-card.danger{border-color:var(--admin-accent)}.metric-card.info{border-color:#38a3c5}.content-card,.admin-topbar,.metric-card{animation:adminFadeUp .38s ease both}@keyframes adminFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.admin-sidebar a{transition:background .18s ease,transform .18s ease}.admin-sidebar a:hover{transform:translateX(3px)}@media (prefers-reduced-motion: reduce){*,*::before,*::after{transition:none!important;animation:none!important}}@media(max-width:900px){.admin-sidebar{width:220px}}
@@ -54,22 +55,22 @@
 <div class="admin-backdrop" data-admin-sidebar-backdrop></div>
 <div class="d-flex">
     <aside class="admin-sidebar text-white p-3">
-        <img class="admin-logo" src="{{ asset($adminLogoPath) }}" alt="Rai Khaisaeng Strawberry"><div class="brand-admin mb-1"><i class="bi bi-speedometer2 me-2"></i>SB Admin</div><p class="opacity-75 mb-4">Rai Khaisaeng Strawberry</p>
-        <a href="{{route('admin.dashboard')}}"><i class="bi bi-house me-2"></i><span class="nav-text">Dashboard</span></a>
-        <a href="{{route('admin.products.index')}}"><i class="bi bi-box-seam me-2"></i><span class="nav-text">สินค้า</span></a>
-        <a href="{{route('admin.categories.index')}}"><i class="bi bi-tags me-2"></i><span class="nav-text">หมวดหมู่</span></a>
-        <a href="{{route('admin.promotions.index')}}"><i class="bi bi-megaphone me-2"></i><span class="nav-text">โฆษณา / โปรโมชั่น</span></a>
-        <a href="{{route('admin.orders.index')}}"><i class="bi bi-receipt me-2"></i><span class="nav-text">ออเดอร์</span>@if($pendingOrderCount>0)<span class="admin-notify-badge">{{$pendingOrderCount}}</span>@endif</a>
-        <a href="{{route('admin.payments.index')}}"><i class="bi bi-credit-card me-2"></i><span class="nav-text">ชำระเงิน</span>@if($pendingPaymentCount>0)<span class="admin-notify-badge">{{$pendingPaymentCount}}</span>@endif</a>
-        <a href="{{route('admin.inventory.index')}}"><i class="bi bi-archive me-2"></i><span class="nav-text">คลังสินค้า</span></a>
-        <a href="{{route('admin.reports.index')}}"><i class="bi bi-bar-chart me-2"></i><span class="nav-text">รายงาน</span></a>
-        <a href="{{route('admin.exports.index')}}"><i class="bi bi-download me-2"></i><span class="nav-text">Backup / Export</span></a>
-        <a href="{{route('admin.activity-logs.index')}}"><i class="bi bi-clock-history me-2"></i><span class="nav-text">Activity Log</span></a>
-        <a href="{{route('admin.social-login-status.index')}}"><i class="bi bi-shield-check me-2"></i><span class="nav-text">Social Login Status</span></a>
+        <img class="admin-logo" src="{{ asset($adminLogoPath) }}" alt="Rai Khaisaeng Strawberry"><div class="brand-admin mb-1"><i class="bi bi-grid-1x2-fill me-2"></i>Farm Console</div><p class="opacity-75 mb-4">ศูนย์จัดการไร่ไขแสง</p>
+        <a class="{{request()->routeIs('admin.dashboard') ? 'active' : ''}}" href="{{route('admin.dashboard')}}"><i class="bi bi-house me-2"></i><span class="nav-text">Dashboard</span></a>
+        <a class="{{request()->routeIs('admin.products.*') ? 'active' : ''}}" href="{{route('admin.products.index')}}"><i class="bi bi-box-seam me-2"></i><span class="nav-text">สินค้า</span></a>
+        <a class="{{request()->routeIs('admin.categories.*') ? 'active' : ''}}" href="{{route('admin.categories.index')}}"><i class="bi bi-tags me-2"></i><span class="nav-text">หมวดหมู่</span></a>
+        <a class="{{request()->routeIs('admin.promotions.*') ? 'active' : ''}}" href="{{route('admin.promotions.index')}}"><i class="bi bi-megaphone me-2"></i><span class="nav-text">โฆษณา / โปรโมชั่น</span></a>
+        <a class="{{request()->routeIs('admin.orders.*') ? 'active' : ''}}" href="{{route('admin.orders.index')}}"><i class="bi bi-receipt me-2"></i><span class="nav-text">ออเดอร์</span>@if($pendingOrderCount>0)<span class="admin-notify-badge">{{$pendingOrderCount}}</span>@endif</a>
+        <a class="{{request()->routeIs('admin.payments.*') ? 'active' : ''}}" href="{{route('admin.payments.index')}}"><i class="bi bi-credit-card me-2"></i><span class="nav-text">ชำระเงิน</span>@if($pendingPaymentCount>0)<span class="admin-notify-badge">{{$pendingPaymentCount}}</span>@endif</a>
+        <a class="{{request()->routeIs('admin.inventory.*') ? 'active' : ''}}" href="{{route('admin.inventory.index')}}"><i class="bi bi-archive me-2"></i><span class="nav-text">คลังสินค้า</span></a>
+        <a class="{{request()->routeIs('admin.reports.*') ? 'active' : ''}}" href="{{route('admin.reports.index')}}"><i class="bi bi-bar-chart me-2"></i><span class="nav-text">รายงาน</span></a>
+        <a class="{{request()->routeIs('admin.exports.*') ? 'active' : ''}}" href="{{route('admin.exports.index')}}"><i class="bi bi-download me-2"></i><span class="nav-text">Backup / Export</span></a>
+        <a class="{{request()->routeIs('admin.activity-logs.*') ? 'active' : ''}}" href="{{route('admin.activity-logs.index')}}"><i class="bi bi-clock-history me-2"></i><span class="nav-text">Activity Log</span></a>
+        <a class="{{request()->routeIs('admin.social-login-status.*') ? 'active' : ''}}" href="{{route('admin.social-login-status.index')}}"><i class="bi bi-shield-check me-2"></i><span class="nav-text">Social Login Status</span></a>
         @if((auth()->user()->role ?? null) === 'super_admin')
-            <a href="{{route('admin.users.index')}}"><i class="bi bi-people me-2"></i><span class="nav-text">สมาชิก / สิทธิ์ผู้ใช้งาน</span></a>
-            <a href="{{route('admin.theme.edit')}}"><i class="bi bi-palette me-2"></i><span class="nav-text">ปรับแต่งธีม</span></a>
-            <a href="{{route('admin.company-settings.edit')}}"><i class="bi bi-gear me-2"></i><span class="nav-text">ตั้งค่าข้อมูลร้านค้า</span></a>
+            <a class="{{request()->routeIs('admin.users.*') ? 'active' : ''}}" href="{{route('admin.users.index')}}"><i class="bi bi-people me-2"></i><span class="nav-text">สมาชิก / สิทธิ์ผู้ใช้งาน</span></a>
+            <a class="{{request()->routeIs('admin.theme.*') ? 'active' : ''}}" href="{{route('admin.theme.edit')}}"><i class="bi bi-palette me-2"></i><span class="nav-text">ปรับแต่งธีม</span></a>
+            <a class="{{request()->routeIs('admin.company-settings.*') ? 'active' : ''}}" href="{{route('admin.company-settings.edit')}}"><i class="bi bi-gear me-2"></i><span class="nav-text">ตั้งค่าข้อมูลร้านค้า</span></a>
         @endif
         <hr class="border-light opacity-25"><a href="{{route('shop.home')}}"><i class="bi bi-shop me-2"></i><span class="nav-text">หน้าร้าน</span></a>
         <form method="POST" action="{{ route('logout') }}" class="mt-2">
@@ -101,6 +102,8 @@
             </div>
         </div>
         @if(session('success'))<div class="alert alert-success rounded-4 shadow-sm">{{session('success')}}</div>@endif
+        @if(session('error'))<div class="alert alert-danger rounded-4 shadow-sm">{{session('error')}}</div>@endif
+        @if($errors->any())<div class="alert alert-danger rounded-4 shadow-sm" role="alert"><div class="fw-bold mb-1">กรุณาตรวจสอบข้อมูล</div><ul class="mb-0">@foreach($errors->all() as $error)<li>{{$error}}</li>@endforeach</ul></div>@endif
         @yield('content')
     </main>
 </div>

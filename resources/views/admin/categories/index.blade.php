@@ -48,7 +48,11 @@
                             <td><a class="btn btn-sm btn-outline-danger rounded-pill" target="_blank" href="{{route('shop.products',['category'=>$c->slug])}}">ดูสินค้า</a></td>
                             <td class="text-end text-nowrap">
                                 <button form="categoryUpdate{{$c->id}}" class="btn btn-sm btn-outline-primary rounded-pill px-3">บันทึก</button>
-                                <form method="post" action="{{route('admin.categories.destroy',$c)}}" class="d-inline" onsubmit="return confirm('ยืนยันลบหมวดหมู่นี้?')">@csrf @method('delete')<button class="btn btn-sm btn-outline-danger rounded-pill px-3">ลบ</button></form>
+                                @if($c->products_count > 0)
+                                    <div class="small text-warning-emphasis mt-2">ย้ายสินค้าหรือปิดใช้งานหมวดหมู่ก่อน</div>
+                                @else
+                                    <form method="post" action="{{route('admin.categories.destroy',$c)}}" class="d-inline" aria-label="ลบหมวดหมู่ {{$c->name}}" onsubmit="return confirm('ยืนยันลบหมวดหมู่นี้?')">@csrf @method('delete')<button class="btn btn-sm btn-outline-danger rounded-pill px-3">ลบ</button></form>
+                                @endif
                             </td>
                         </tr>
                     @empty

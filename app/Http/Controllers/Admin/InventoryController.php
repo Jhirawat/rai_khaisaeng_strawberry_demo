@@ -1,10 +1,13 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Inventory,InventoryLog};
-use Illuminate\Http\Request;
+use App\Models\Inventory;
+use App\Models\InventoryLog;
 use App\Support\ActivityLogger;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
@@ -15,7 +18,7 @@ class InventoryController extends Controller
             $query->whereColumn('quantity', '<=', 'low_stock_threshold');
         }
         if ($request->filled('search')) {
-            $query->whereHas('product', fn($q) => $q->where('name', 'like', '%'.$request->search.'%'));
+            $query->whereHas('product', fn ($q) => $q->where('name', 'like', '%'.$request->search.'%'));
         }
         $inventories = $query->paginate(20)->withQueryString();
         $summary = [
@@ -24,7 +27,8 @@ class InventoryController extends Controller
             'out' => Inventory::where('quantity', '<=', 0)->count(),
             'stock' => Inventory::sum('quantity'),
         ];
-        return view('admin.inventory.index', compact('inventories','summary'));
+
+        return view('admin.inventory.index', compact('inventories', 'summary'));
     }
 
     public function update(Request $request, Inventory $inventory)
@@ -46,8 +50,9 @@ class InventoryController extends Controller
             'note' => $data['note'] ?? 'ปรับสต๊อกจากหน้าแอดมิน',
             'user_id' => auth()->id(),
         ]);
-        ActivityLogger::log('inventory.updated', $inventory, ['from'=>$oldQty,'to'=>$inventory->quantity], $inventory->product->name ?? 'Inventory #'.$inventory->id);
-        return back()->with('success','อัปเดตคลังสินค้าเรียบร้อย');
+        ActivityLogger::log('inventory.updated', $inventory, ['from' => $oldQty, 'to' => $inventory->quantity], $inventory->product->name ?? 'Inventory #'.$inventory->id);
+
+        return back()->with('success', 'อัปเดตคลังสินค้าเรียบร้อย');
     }
 
     public function bulkUpdate(Request $request)
@@ -59,28 +64,37 @@ class InventoryController extends Controller
             'thresholds.*' => 'required|integer|min:0',
         ]);
 
-        foreach ($data['quantities'] as $inventoryId => $quantity) {
-            $inventory = Inventory::find($inventoryId);
-            if (!$inventory) {
-                continue;
-            }
-            $oldQty = $inventory->quantity;
-            $threshold = $data['thresholds'][$inventoryId] ?? $inventory->low_stock_threshold;
-            $inventory->update([
-                'quantity' => (int) $quantity,
-                'low_stock_threshold' => (int) $threshold,
-            ]);
-            if ((int) $quantity !== (int) $oldQty) {
+        DB::transaction(function () use ($data) {
+            foreach ($data['quantities'] as $inventoryId => $quantity) {
+                $inventory = Inventory::with('product')->lockForUpdate()->find($inventoryId);
+                if (! $inventory) {
+                    continue;
+                }
+
+                $oldQty = (int) $inventory->quantity;
+                $oldThreshold = (int) $inventory->low_stock_threshold;
+                $quantity = (int) $quantity;
+                $threshold = (int) ($data['thresholds'][$inventoryId] ?? $oldThreshold);
+                if ($quantity === $oldQty && $threshold === $oldThreshold) {
+                    continue;
+                }
+
+                $inventory->update(['quantity' => $quantity, 'low_stock_threshold' => $threshold]);
                 InventoryLog::create([
                     'inventory_id' => $inventory->id,
                     'type' => 'adjust',
-                    'quantity' => abs((int) $quantity - (int) $oldQty),
-                    'note' => 'บันทึกสต๊อกหลายรายการจากหน้าแอดมิน',
+                    'quantity' => abs($quantity - $oldQty),
+                    'note' => $quantity === $oldQty ? 'ปรับจำนวนขั้นต่ำแจ้งเตือนจากหน้าแอดมิน' : 'บันทึกสต๊อกหลายรายการจากหน้าแอดมิน',
                     'user_id' => auth()->id(),
                 ]);
-                ActivityLogger::log('inventory.bulk_updated', $inventory, ['from'=>$oldQty,'to'=>(int)$quantity], $inventory->product->name ?? 'Inventory #'.$inventory->id);
+                ActivityLogger::log('inventory.bulk_updated', $inventory, [
+                    'quantity_from' => $oldQty,
+                    'quantity_to' => $quantity,
+                    'threshold_from' => $oldThreshold,
+                    'threshold_to' => $threshold,
+                ], $inventory->product->name ?? 'Inventory #'.$inventory->id);
             }
-        }
+        });
 
         return back()->with('success', 'บันทึกคลังสินค้าทั้งหมดเรียบร้อยแล้ว');
     }

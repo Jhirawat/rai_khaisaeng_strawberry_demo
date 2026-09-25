@@ -6,7 +6,7 @@
     <form method="get" class="d-flex gap-2"><select name="year" class="form-select rounded-pill" onchange="this.form.submit()">@foreach($years as $y)<option value="{{$y}}" @selected($year==$y)>ปี {{$y}}</option>@endforeach</select></form>
 </div>
 <div class="row g-3">
-    <div class="col-md-3"><div class="content-card metric-card p-3">ยอดขายทั้งหมด<h3 class="text-danger">฿{{number_format($totalSales,2)}}</h3></div></div>
+    <div class="col-md-3"><div class="content-card metric-card p-3">ยอดขายสะสม (ทุกปี)<h3 class="text-danger">฿{{number_format($totalSales,2)}}</h3></div></div>
     <div class="col-md-3"><div class="content-card metric-card info p-3">ยอดขายวันนี้<h3>฿{{number_format($todaySales,2)}}</h3></div></div>
     <div class="col-md-3"><div class="content-card metric-card p-3">ยอดขายเดือนนี้<h3>฿{{number_format($monthSales,2)}}</h3></div></div>
     <div class="col-md-3"><div class="content-card metric-card warning p-3">สินค้าใกล้หมด<h3>{{$lowStock}}</h3></div></div>
@@ -29,8 +29,8 @@
     <div class="col-lg-4"><div class="content-card p-3"><div class="fw-bold mb-2">ยอดขายตามประเภทสินค้า</div><canvas id="cats" height="230"></canvas></div></div>
 </div>
 <div class="row mt-4 g-3">
-    <div class="col-lg-7"><div class="content-card p-3"><div class="fw-bold mb-2">ออเดอร์ล่าสุด</div><table class="table align-middle"><tr><th>เลขออเดอร์</th><th>ลูกค้า</th><th>ยอดเงิน</th><th>สถานะ</th></tr>@foreach($latestOrders as $o)<tr><td><a href="{{route('admin.orders.show',$o)}}">{{$o->order_number}}</a></td><td>{{$o->user->name ?? '-'}}</td><td class="text-danger fw-bold">฿{{number_format($o->total,2)}}</td><td><span class="badge {{$o->status_badge_class}}">{{$o->status_label}}</span></td></tr>@endforeach</table></div></div>
-    <div class="col-lg-5"><div class="content-card p-3"><div class="fw-bold mb-2">สินค้าใกล้หมด</div><table class="table align-middle"><tr><th>SKU</th><th>สินค้า</th><th class="text-end">คงเหลือ</th></tr>@forelse($lowStockItems as $i)<tr><td>{{$i->product->sku ?? '-'}}</td><td>{{$i->product->name ?? '-'}}</td><td class="text-end text-danger fw-bold">{{$i->quantity}}</td></tr>@empty<tr><td colspan="3" class="text-center text-muted">ไม่มีสินค้าใกล้หมด</td></tr>@endforelse</table><a href="{{route('admin.inventory.index',['low_stock'=>1])}}" class="btn btn-outline-warning rounded-pill">ดูทั้งหมด</a></div></div>
+    <div class="col-lg-7"><div class="content-card p-3"><div class="fw-bold mb-2">ออเดอร์ล่าสุด</div><div class="table-responsive"><table class="table align-middle"><tr><th>เลขออเดอร์</th><th>ลูกค้า</th><th>ยอดเงิน</th><th>สถานะ</th></tr>@foreach($latestOrders as $o)<tr><td><a href="{{route('admin.orders.show',$o)}}">{{$o->order_number}}</a></td><td>{{$o->user->name ?? '-'}}</td><td class="text-danger fw-bold">฿{{number_format($o->total,2)}}</td><td><span class="badge {{$o->status_badge_class}}">{{$o->status_label}}</span></td></tr>@endforeach</table></div></div></div>
+    <div class="col-lg-5"><div class="content-card p-3"><div class="fw-bold mb-2">สินค้าใกล้หมด</div><div class="table-responsive"><table class="table align-middle"><tr><th>SKU</th><th>สินค้า</th><th class="text-end">คงเหลือ</th></tr>@forelse($lowStockItems as $i)<tr><td>{{$i->product->sku ?? '-'}}</td><td>{{$i->product->name ?? '-'}}</td><td class="text-end text-danger fw-bold">{{$i->quantity}}</td></tr>@empty<tr><td colspan="3" class="text-center text-muted">ไม่มีสินค้าใกล้หมด</td></tr>@endforelse</table></div><a href="{{route('admin.inventory.index',['low_stock'=>1])}}" class="btn btn-outline-warning rounded-pill">ดูทั้งหมด</a></div></div>
 </div>
 <script>
 const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];

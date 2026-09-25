@@ -14,4 +14,5 @@
 @media print{.company-address-line{gap:4px;}}
 </style>
 
+<style>.demo-document-notice{margin:0 0 8px;padding:6px;border:1px solid #777;color:#555;text-align:center;font-size:9px;font-weight:bold}</style>
 </head><body>@include('receipts._receipt_body')</body></html>

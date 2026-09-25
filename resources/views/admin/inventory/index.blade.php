@@ -13,7 +13,7 @@
             <h5 class="fw-bold mb-1">จัดการคลังสินค้า</h5>
             <div class="text-muted small">ปรับจำนวนคงเหลือและจำนวนขั้นต่ำสำหรับแจ้งเตือนสินค้าใกล้หมด</div>
         </div>
-        <form class="d-flex gap-2" method="get">
+        <form class="d-flex flex-wrap gap-2 admin-search-form" method="get">
             <input class="form-control rounded-pill" name="search" value="{{request('search')}}" placeholder="ค้นหาสินค้า">
             <button class="btn btn-danger rounded-pill px-4">ค้นหา</button>
             @if(request('low_stock'))<a class="btn btn-outline-secondary rounded-pill" href="{{route('admin.inventory.index')}}">ทั้งหมด</a>@endif
@@ -58,16 +58,14 @@
                             <div class="adjust-group">
                                 <label class="adjust-label">คงเหลือ</label>
                                 <button type="button" class="adjust-btn minus" data-target="qty-{{$i->id}}" data-step="-1">−</button>
-                                <span class="adjust-value" id="qty-{{$i->id}}-display">{{$i->quantity}}</span>
+                                <input type="number" min="0" class="adjust-value" id="qty-{{$i->id}}" name="quantities[{{$i->id}}]" value="{{$i->quantity}}" aria-label="จำนวนคงเหลือ {{$i->product->name}}">
                                 <button type="button" class="adjust-btn plus" data-target="qty-{{$i->id}}" data-step="1">+</button>
-                                <input type="hidden" id="qty-{{$i->id}}" name="quantities[{{$i->id}}]" value="{{$i->quantity}}">
                             </div>
                             <div class="adjust-group threshold">
                                 <label class="adjust-label">ขั้นต่ำ</label>
                                 <button type="button" class="adjust-btn minus" data-target="threshold-{{$i->id}}" data-step="-1">−</button>
-                                <span class="adjust-value" id="threshold-{{$i->id}}-display">{{$i->low_stock_threshold}}</span>
+                                <input type="number" min="0" class="adjust-value" id="threshold-{{$i->id}}" name="thresholds[{{$i->id}}]" value="{{$i->low_stock_threshold}}" aria-label="ขั้นต่ำแจ้งเตือน {{$i->product->name}}">
                                 <button type="button" class="adjust-btn plus" data-target="threshold-{{$i->id}}" data-step="1">+</button>
-                                <input type="hidden" id="threshold-{{$i->id}}" name="thresholds[{{$i->id}}]" value="{{$i->low_stock_threshold}}">
                             </div>
                         </div>
                     </td>
@@ -82,7 +80,7 @@
     <div class="mt-3 inventory-pagination">{{$inventories->links('pagination::bootstrap-5')}}</div>
 </div>
 <style>
-.inventory-table th{font-weight:800}.inventory-table td{padding:1rem .75rem}.legend-dot{display:inline-block;width:12px;height:12px;border-radius:999px;margin-right:4px}.inventory-adjust-form{display:flex;align-items:center;gap:.6rem;flex-wrap:nowrap;white-space:nowrap}.inventory-table th,.inventory-table td{white-space:nowrap}.inventory-table td:first-child{min-width:260px}.inventory-table td:last-child{min-width:420px}.adjust-group{display:inline-flex;align-items:center;border:1px solid #ffd1d8;border-radius:999px;overflow:hidden;background:#fff}.adjust-group.threshold{border-color:#ffe7a3}.adjust-label{font-size:.75rem;font-weight:800;padding:0 .6rem;color:#6c757d}.adjust-btn{width:34px;height:34px;border:0;font-weight:900;background:#fff;color:#dc2f43}.adjust-btn.plus{background:#dc2f43;color:#fff}.adjust-group.threshold .adjust-btn.plus{background:#f6b800;color:#111}.adjust-value{min-width:44px;text-align:center;font-weight:900;color:#dc2f43;background:#fff5f6;padding:.3rem .4rem}.adjust-group.threshold .adjust-value{color:#111;background:#fff9df}
+.inventory-table th{font-weight:800}.inventory-table td{padding:1rem .75rem}.legend-dot{display:inline-block;width:12px;height:12px;border-radius:999px;margin-right:4px}.inventory-adjust-form{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.inventory-table th,.inventory-table td{white-space:nowrap}.inventory-table td:first-child{min-width:240px}.inventory-table td:last-child{min-width:360px}.adjust-group{display:inline-flex;align-items:center;border:1px solid #ffd1d8;border-radius:999px;overflow:hidden;background:#fff}.adjust-group.threshold{border-color:#ffe7a3}.adjust-label{font-size:.75rem;font-weight:800;padding:0 .6rem;color:#6c757d}.adjust-btn{width:34px;height:38px;border:0;font-weight:900;background:#fff;color:var(--admin-accent)}.adjust-btn.plus{background:var(--admin-accent);color:#fff}.adjust-group.threshold .adjust-btn.plus{background:#f6b800;color:#111}.adjust-value{width:58px;min-width:58px;height:38px;border:0;border-radius:0;text-align:center;font-weight:900;color:var(--admin-accent);background:#fff5f6;padding:.3rem .2rem;-moz-appearance:textfield}.adjust-value::-webkit-inner-spin-button{display:none}.adjust-group.threshold .adjust-value{color:#111;background:#fff9df}@media(max-width:575px){.admin-search-form,.admin-search-form>*{width:100%}.inventory-table td:last-child{min-width:300px}}
 </style>
 <script>
 (function(){
@@ -97,13 +95,11 @@ document.addEventListener('click',function(e){
     const btn=e.target.closest('.adjust-btn');
     if(!btn) return;
     const input=document.getElementById(btn.dataset.target);
-    const display=document.getElementById(btn.dataset.target+'-display');
-    if(!input || !display) return;
+    if(!input) return;
     const step=parseInt(btn.dataset.step || '0',10);
     const current=parseInt(input.value || '0',10);
     const next=Math.max(0,current+step);
     input.value=next;
-    display.textContent=next;
 });
 </script>
 @endsection

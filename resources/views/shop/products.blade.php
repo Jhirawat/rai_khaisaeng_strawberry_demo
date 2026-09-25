@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('title', __('All Products').' | '.__('Rai Khaisaeng Strawberry Farm'))
 @section('content')
 <div class="container">
     @php $activeCategory = $categories->firstWhere('slug', request('category')); @endphp
@@ -8,8 +9,8 @@
         <p class="mb-0">{{__('Choose products from Rai Khaisaeng Strawberry Farm. Search, filter, and add products to cart quickly.')}}</p>
     </div>
     <form id="productFilter" class="row g-3 mb-4 p-3 bg-white rounded-4 shadow-sm" method="get" action="{{route('shop.products')}}">
-        <div class="col-lg-5"><input name="search" class="form-control form-control-lg rounded-pill" placeholder="{{__('Search products')}}" value="{{request('search')}}"></div>
-        <div class="col-lg-4"><select id="categorySelect" name="category" class="form-select form-select-lg rounded-pill"><option value="">{{__('All Products')}}</option>@foreach($categories as $c)<option value="{{$c->slug}}" @selected(request('category')==$c->slug)>{{$c->display_name}}</option>@endforeach</select></div>
+        <div class="col-lg-5"><label class="visually-hidden" for="productSearch">{{__('Search products')}}</label><input id="productSearch" name="search" class="form-control form-control-lg rounded-pill" placeholder="{{__('Search products')}}" value="{{request('search')}}"></div>
+        <div class="col-lg-4"><label class="visually-hidden" for="categorySelect">{{__('Product Categories')}}</label><select id="categorySelect" name="category" class="form-select form-select-lg rounded-pill"><option value="">{{__('All Products')}}</option>@foreach($categories as $c)<option value="{{$c->slug}}" @selected(request('category')==$c->slug)>{{$c->display_name}}</option>@endforeach</select></div>
         <div class="col-lg-3"><button class="btn btn-brand btn-lg rounded-pill w-100">{{__('Filter Products')}}</button></div>
     </form>
     <div class="row g-4">
@@ -23,33 +24,39 @@
         </aside>
         <section class="col-lg-9">
             <div class="row g-4">
-                @foreach($products as $p)
+                @forelse($products as $p)
+                    @php $stock = (int) optional($p->inventory)->quantity; @endphp
                     <div class="col-md-6 col-xl-4">
                         <div class="card product-card h-100">
-                            <div class="product-thumb"><img src="{{$p->primary_image_url}}" alt="{{$p->display_name}}"></div>
+                            <a class="product-thumb" href="{{route('shop.product',$p)}}"><img src="{{$p->primary_image_url}}" alt="{{$p->display_name}}" loading="lazy"></a>
                             <div class="card-body">
-                                <h5 class="fw-bold">{{$p->display_name}}</h5>
+                                <div class="d-flex justify-content-between align-items-start gap-2"><h5 class="fw-bold"><a href="{{route('shop.product',$p)}}">{{$p->display_name}}</a></h5><span class="stock-chip {{$stock > 10 ? 'in' : ($stock > 0 ? 'low' : 'out')}}">{{$stock > 10 ? __('In Stock') : ($stock > 0 ? __('Low stock') : __('Out of stock'))}}</span></div>
                                 <p class="text-muted mb-2"><a class="text-muted text-decoration-none" href="{{route('shop.products',['category'=>$p->category->slug])}}">{{$p->category->display_name}}</a></p>
                                 <div class="fs-5 fw-bold text-danger mb-3">฿{{number_format($p->price,2)}}</div>
                                 <div class="d-flex gap-2 flex-wrap">
                                     <a class="btn btn-sm btn-outline-brand rounded-pill" href="{{route('shop.product',$p)}}">{{__('Details')}}</a>
-                                    @auth
+                                    @auth @if($stock > 0)
                                         <form class="js-add-to-cart" method="post" action="{{route('member.cart.add',$p)}}">@csrf<input type="hidden" name="quantity" value="1"><button class="btn btn-sm btn-brand rounded-pill"><i class="bi bi-cart-plus"></i> {{__('Add to Cart')}}</button></form>
                                     @else
-                                        <a href="{{route('login')}}" class="btn btn-sm btn-brand rounded-pill"><i class="bi bi-lock"></i> {{__('Add to Cart')}}</a>
+                                        <button class="btn btn-sm btn-secondary rounded-pill" disabled>{{__('Out of stock')}}</button>
+                                    @endif
+                                    @else
+                                        <a href="{{route('login')}}" class="btn btn-sm btn-brand rounded-pill"><i class="bi bi-lock"></i> {{$stock > 0 ? __('Add to Cart') : __('View product')}}</a>
                                     @endauth
                                 </div>
                             </div>
                         </div>
                     </div>
-                @endforeach
+                @empty
+                    <div class="col-12"><div class="empty-state bg-white rounded-4 shadow-sm"><div class="empty-state-icon"><i class="bi bi-search"></i></div><h3>{{__('No products found')}}</h3><p class="text-muted">{{__('Try another keyword or clear the selected filters.')}}</p><a class="btn btn-brand rounded-pill px-4" href="{{route('shop.products')}}">{{__('Clear filters')}}</a></div></div>
+                @endforelse
             </div>
             @if($products->hasPages())
-                <div class="mt-4 d-flex justify-content-center gap-2 product-pagination">
+                <nav aria-label="{{__('Product pages')}}" class="mt-4 d-flex justify-content-center gap-2 product-pagination">
                     @if($products->onFirstPage())<span class="page-btn disabled">{{__('Previous')}}</span>@else<a class="page-btn" href="{{$products->previousPageUrl()}}">{{__('Previous')}}</a>@endif
                     @for($page=1; $page <= $products->lastPage(); $page++) @if($page == $products->currentPage())<span class="page-btn active">{{$page}}</span>@else<a class="page-btn" href="{{$products->url($page)}}">{{$page}}</a>@endif @endfor
                     @if($products->hasMorePages())<a class="page-btn" href="{{$products->nextPageUrl()}}">{{__('Next')}}</a>@else<span class="page-btn disabled">{{__('Next')}}</span>@endif
-                </div>
+                </nav>
             @endif
         </section>
     </div>

@@ -1,11 +1,12 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use App\Support\ActivityLogger;
 
 class CompanySettingsController extends Controller
 {
@@ -23,6 +24,7 @@ class CompanySettingsController extends Controller
         'company_phone_2' => '081-033-4893',
         'company_phone_3_name' => 'คุณตี๋',
         'company_phone_3' => '089-265-5685',
+        'company_signatory_name' => 'ผู้มีอำนาจลงนาม',
         'company_map_url' => 'https://maps.app.goo.gl/GyHtBcHiVML1NudQ9',
         'site_logo_th' => 'images/logo-nav-th.png',
         'site_logo_en' => 'images/logo-nav-en.png',
@@ -41,20 +43,36 @@ class CompanySettingsController extends Controller
         foreach ($this->fields as $key => $default) {
             $settings[$key] = Setting::getValue($key, $default);
         }
+
         return view('admin.settings.company', compact('settings'));
     }
 
     public function update(Request $request)
     {
         $rules = [];
-        foreach ($this->fields as $key => $default) $rules[$key] = ['nullable','string','max:5000'];
-        foreach (['site_logo_th_file','site_logo_en_file','receipt_logo_th_file','receipt_logo_en_file','site_favicon_file','home_hero_image_file'] as $fileField) {
-            $rules[$fileField] = ['nullable','file','mimes:png,jpg,jpeg,webp,ico','max:2048'];
+        foreach ($this->fields as $key => $default) {
+            $rules[$key] = ['nullable', 'string', 'max:5000'];
         }
-        $rules['company_email'] = ['nullable','email','max:255'];
+        foreach (['site_logo_th_file', 'site_logo_en_file', 'receipt_logo_th_file', 'receipt_logo_en_file', 'site_favicon_file', 'home_hero_image_file'] as $fileField) {
+            $rules[$fileField] = ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,ico', 'max:2048'];
+        }
+        $rules['company_email'] = ['nullable', 'email', 'max:255'];
+        $rules['company_tax_id'] = ['nullable', 'string', 'max:20'];
+        $rules['company_map_url'] = ['nullable', 'url:http,https', 'max:2048'];
+        foreach (['social_facebook_url', 'social_youtube_url', 'social_line_url'] as $urlField) {
+            $rules[$urlField] = ['nullable', 'string', 'max:2048', function (string $attribute, mixed $value, \Closure $fail) {
+                if ($value === '#' || $value === '') {
+                    return;
+                }
+                $scheme = parse_url((string) $value, PHP_URL_SCHEME);
+                if (! filter_var($value, FILTER_VALIDATE_URL) || ! in_array($scheme, ['http', 'https'], true)) {
+                    $fail('ลิงก์ Social ต้องขึ้นต้นด้วย http:// หรือ https://');
+                }
+            }];
+        }
         $data = $request->validate($rules);
         foreach ($this->fields as $key => $default) {
-            if (!str_ends_with($key, '_file')) {
+            if (! str_ends_with($key, '_file')) {
                 Setting::setValue($key, $data[$key] ?? Setting::getValue($key, $default));
             }
         }
@@ -69,11 +87,16 @@ class CompanySettingsController extends Controller
         ];
         foreach ($fileMap as $input => $settingKey) {
             if ($request->hasFile($input)) {
+                $oldPath = (string) Setting::getValue($settingKey, '');
+                if (str_starts_with($oldPath, 'storage/settings/')) {
+                    Storage::disk('public')->delete(substr($oldPath, 8));
+                }
                 $path = $request->file($input)->store('settings', 'public');
                 Setting::setValue($settingKey, 'storage/'.$path);
             }
         }
-        ActivityLogger::log('settings.company_updated', null, ['updated_fields'=>array_keys($data)]);
+        ActivityLogger::log('settings.company_updated', null, ['updated_fields' => array_keys($data)]);
+
         return back()->with('success', 'บันทึกข้อมูลร้านค้าและโลโก้เรียบร้อยแล้ว');
     }
 }

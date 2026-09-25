@@ -1,17 +1,28 @@
 <?php
+
 namespace App\Http\Controllers\Member;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Cart,Order,OrderItem,Payment,Shipment,InventoryLog,ShippingAddress,Setting};
+use App\Models\Cart;
+use App\Models\Inventory;
+use App\Models\InventoryLog;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Payment;
+use App\Models\Setting;
+use App\Models\Shipment;
+use App\Models\ShippingAddress;
+use App\Models\User;
+use App\Services\SlipOcrService;
+use App\Support\ValidatesThaiAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Support\ValidatesThaiAddress;
 use Illuminate\Validation\ValidationException;
-use App\Services\SlipOcrService;
 
 class CheckoutController extends Controller
 {
     use ValidatesThaiAddress;
+
     public function form()
     {
         $cart = Cart::with('items.product')->firstOrCreate(['user_id' => auth()->id()]);
@@ -26,20 +37,32 @@ class CheckoutController extends Controller
         return view('member.checkout', compact('cart', 'addresses', 'defaultAddress', 'summary'));
     }
 
+    public function summary(Request $request)
+    {
+        $data = $request->validate(['province' => 'nullable|string|max:100']);
+        $cart = Cart::with('items')->where('user_id', auth()->id())->first();
+
+        if (! $cart || $cart->items->isEmpty()) {
+            return response()->json(['message' => __('Your cart is empty. Please choose products before checkout.')], 422);
+        }
+
+        return response()->json($this->orderSummary($cart, $data['province'] ?? null));
+    }
+
     public function store(Request $r)
     {
         $d = $r->validate([
             'recipient_name' => 'required|string|max:255',
-            'phone' => ['required','regex:/^[0-9]{9,10}$/'],
+            'phone' => ['required', 'regex:/^[0-9]{9,10}$/'],
             'address' => 'required|string|max:1000',
             'province' => 'required|string|max:100',
             'district' => 'required|string|max:100',
             'subdistrict' => 'required|string|max:100',
-            'postal_code' => ['required','regex:/^[0-9]{5}$/'],
+            'postal_code' => ['required', 'regex:/^[0-9]{5}$/'],
             'payment_method' => 'required|in:bank_transfer,qr,cod',
             'slip' => 'required_if:payment_method,bank_transfer,qr|nullable|image|mimes:jpg,jpeg,png|max:5120',
             'needs_tax_invoice' => 'nullable|boolean',
-            'customer_tax_id' => ['required_if:needs_tax_invoice,1','nullable','digits:13'],
+            'customer_tax_id' => ['required_if:needs_tax_invoice,1', 'nullable', 'digits:13'],
             'customer_tax_name' => 'nullable|string|max:255',
             'customer_tax_address' => 'nullable|string|max:1000',
         ], [
@@ -74,7 +97,7 @@ class CheckoutController extends Controller
         }
 
         $cart = Cart::with('items.product.inventory')->where('user_id', auth()->id())->first();
-        if (!$cart || $cart->items->isEmpty()) {
+        if (! $cart || $cart->items->isEmpty()) {
             return redirect()->route('member.cart')->with('error', __('Your cart is empty. Please choose products before checkout.'));
         }
 
@@ -90,10 +113,17 @@ class CheckoutController extends Controller
             }
         }
 
-        return DB::transaction(function () use ($d, $r, $slipAnalysis) {
+        $userId = (int) auth()->id();
+
+        return DB::transaction(function () use ($d, $r, $slipAnalysis, $userId) {
+            $lockedUser = User::withTrashed()->lockForUpdate()->find($userId);
+            if (! $lockedUser || $lockedUser->trashed() || ! $lockedUser->is_active) {
+                return redirect()->route('login')->with('error', 'ไม่สามารถสร้างคำสั่งซื้อได้ เนื่องจากบัญชีไม่ได้เปิดใช้งาน');
+            }
+
             // Edge case: lock ตะกร้าใน Transaction ป้องกัน double submit / กด Checkout ซ้ำพร้อมกัน
-            $cart = Cart::where('user_id', auth()->id())->lockForUpdate()->first();
-            if (!$cart) {
+            $cart = Cart::where('user_id', $lockedUser->id)->lockForUpdate()->first();
+            if (! $cart) {
                 return redirect()->route('member.cart')->with('error', __('Your cart is empty. Please choose products before checkout.'));
             }
             $cart->load('items.product.inventory');
@@ -102,9 +132,9 @@ class CheckoutController extends Controller
             }
 
             foreach ($cart->items as $item) {
-                $inventory = \App\Models\Inventory::where('product_id', $item->product_id)->lockForUpdate()->first();
+                $inventory = Inventory::where('product_id', $item->product_id)->lockForUpdate()->first();
                 $available = (int) optional($inventory)->quantity;
-                if (!$item->product || $item->product->status !== 'active') {
+                if (! $item->product || $item->product->status !== 'active') {
                     return response()->view('member.stock_error', [
                         'item' => $item,
                         'product' => $item->product,
@@ -123,11 +153,12 @@ class CheckoutController extends Controller
             }
 
             $summary = $this->orderSummary($cart, $d['province'] ?? null);
+            $isCashOnDelivery = $d['payment_method'] === 'cod';
 
             $order = Order::create([
-                'user_id' => auth()->id(),
+                'user_id' => $lockedUser->id,
                 'order_number' => Order::generateOrderNumber(),
-                'status' => 'pending_payment',
+                'status' => $isCashOnDelivery ? 'confirmed' : 'pending_payment',
                 'payment_status' => 'pending',
                 'subtotal' => $summary['subtotal'],
                 'shipping_fee' => $summary['shipping'],
@@ -137,12 +168,12 @@ class CheckoutController extends Controller
                 'shipping_rule_note' => $summary['shipping_note'],
                 'total' => $summary['grand_total'],
                 'shipping_address_snapshot' => json_encode($d, JSON_UNESCAPED_UNICODE),
-                'needs_tax_invoice' => (bool)($d['needs_tax_invoice'] ?? false),
+                'needs_tax_invoice' => (bool) ($d['needs_tax_invoice'] ?? false),
                 'customer_tax_id' => $d['customer_tax_id'] ?? null,
                 'customer_tax_name' => $d['customer_tax_name'] ?? null,
-                'customer_tax_address' => $d['customer_tax_address'] ?: null,
+                'customer_tax_address' => ($d['customer_tax_address'] ?? null) ?: null,
                 'ordered_at' => now(),
-                'expires_at' => now()->addDay(),
+                'expires_at' => $isCashOnDelivery ? null : now()->addDay(),
             ]);
 
             foreach ($cart->items as $i) {
@@ -155,23 +186,24 @@ class CheckoutController extends Controller
                     'total' => $i->price * $i->quantity,
                 ]);
 
-                $inv = \App\Models\Inventory::where('product_id', $i->product_id)->lockForUpdate()->first();
+                $inv = Inventory::where('product_id', $i->product_id)->lockForUpdate()->first();
                 $inv->decrement('quantity', $i->quantity);
                 InventoryLog::create([
                     'inventory_id' => $inv->id,
                     'type' => 'order_deduct',
                     'quantity' => $i->quantity,
-                    'note' => 'ตัดสต๊อกจากคำสั่งซื้อ ' . $order->order_number,
-                    'user_id' => auth()->id(),
+                    'note' => 'ตัดสต๊อกจากคำสั่งซื้อ '.$order->order_number,
+                    'user_id' => $lockedUser->id,
                 ]);
             }
 
-            $slip = $r->file('slip') ? $r->file('slip')->store('payment_slips', 'public') : null;
+            $slip = $r->file('slip') ? $r->file('slip')->store('payment_slips', 'local') : null;
             Payment::create([
                 'order_id' => $order->id,
                 'method' => $d['payment_method'],
                 'amount' => $order->total,
                 'slip_path' => $slip,
+                'slip_disk' => $slip ? 'local' : null,
                 'status' => 'pending',
                 'slip_review_status' => $slipAnalysis['status'] ?? ($slip ? 'needs_review' : 'not_required'),
                 'slip_ocr_score' => $slipAnalysis['score'] ?? 0,
@@ -181,7 +213,7 @@ class CheckoutController extends Controller
             Shipment::create(['order_id' => $order->id]);
             $cart->items()->delete();
 
-            return redirect()->route('member.orders')->with('success', __('Order created successfully'));
+            return redirect()->route('member.orders.show', $order)->with('success', __('Order created successfully').' · '.$order->order_number.' · '.__('Please keep your order number for tracking.'));
         });
     }
 
@@ -214,17 +246,23 @@ class CheckoutController extends Controller
 
     private function shippingFee(?string $province, int $qty): float
     {
-        $isChiangMai = in_array(trim((string)$province), ['เชียงใหม่','Chiang Mai','chiang mai'], true);
+        $isChiangMai = in_array(trim((string) $province), ['เชียงใหม่', 'Chiang Mai', 'chiang mai'], true);
         $fee = $isChiangMai ? 50 : 100;
-        if ($qty > 10) $fee += 50;
+        if ($qty > 10) {
+            $fee += 50;
+        }
+
         return $fee;
     }
 
     private function shippingNote(?string $province, int $qty): string
     {
-        $isChiangMai = in_array(trim((string)$province), ['เชียงใหม่','Chiang Mai','chiang mai'], true);
+        $isChiangMai = in_array(trim((string) $province), ['เชียงใหม่', 'Chiang Mai', 'chiang mai'], true);
         $note = $isChiangMai ? 'เชียงใหม่เริ่มต้น 50 บาท' : 'ต่างจังหวัด 100 บาท';
-        if ($qty > 10) $note .= ' + สินค้ามากกว่า 10 ชิ้น เพิ่ม 50 บาท';
+        if ($qty > 10) {
+            $note .= ' + สินค้ามากกว่า 10 ชิ้น เพิ่ม 50 บาท';
+        }
+
         return $note;
     }
 }
