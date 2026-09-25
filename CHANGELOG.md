@@ -1,5 +1,15 @@
 # CHANGELOG - Rai Khaisaeng Strawberry Prototype v30
 
+## 2026-09-25 - Commerce workflow integration fixes
+
+- Rejected unpaid transfer/QR orders now expire and return reserved stock exactly once.
+- Payment approval owns the paid transition; generic order updates cannot bypass payment review or shipment settlement. Legacy unpaid transfers, missing payment records, inconsistent payment truth, and refunded COD cannot advance through fulfillment.
+- Added an operator Shipping form and payment-page link. Preparing, dispatch, delivery, return, timestamps, and COD settlement execute atomically in the shared workflow service; packing retains shipment Preparing.
+- Returned COD can be re-shipped and delivered with rejected payment recovering to approved; changed settlement outcomes retain actor activity, and repeated delivery preserves review/timestamps.
+- Added bounded idempotent legacy COD reconciliation with conservative eligibility and a documented forward-only data rollback policy.
+- Centralized and documented existing fulfillment-based receipt issuance, including delivered COD and retries. See [workflow operations](docs/commerce-workflow-operations.md) for ownership, lock order, migration, and receipt policy.
+- Integration verification uses guarded SQLite only; the retained MySQL schema was not accessed.
+
 ## v30.1 - Urgent Commerce Hardening
 - รวมกติกาสถานะออเดอร์ไว้ที่ `OrderWorkflowService` และปฏิเสธการข้าม/ย้อนสถานะที่ไม่ถูกต้อง โดยมีสถานะ `confirmed` แยกออเดอร์เก็บเงินปลายทางออกจากออเดอร์โอนที่ยังไม่ชำระ
 - เพิ่มคำสั่งและ Scheduler สำหรับหมดอายุออเดอร์โอน/QR ที่ค้างชำระ พร้อมล็อกข้อมูล คืนสต๊อก และบันทึกประวัติเพียงครั้งเดียวแม้เรียกซ้ำหรือประมวลผลบางรายการไม่สำเร็จ

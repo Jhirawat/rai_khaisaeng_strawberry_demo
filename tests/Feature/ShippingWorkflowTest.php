@@ -20,6 +20,7 @@ class ShippingWorkflowTest extends TestCase
         $admin = $this->createAdmin();
         $order = $this->createOrder('packed');
         $shipment = $this->createShipment($order, 'preparing');
+        $this->createCodPayment($order);
 
         $response = $this->actingAs($admin)->patch(route('admin.shipping.update', $shipment), [
             'carrier' => 'Thailand Post',
@@ -116,6 +117,7 @@ class ShippingWorkflowTest extends TestCase
         $admin = $this->createAdmin();
         $order = $this->createOrder('shipped');
         $shipment = $this->createShipment($order, 'shipped');
+        $this->createCodPayment($order);
         $originalShippedAt = $shipment->fresh()->shipped_at;
 
         $response = $this->actingAs($admin)->patch(route('admin.shipping.update', $shipment), [
@@ -136,7 +138,9 @@ class ShippingWorkflowTest extends TestCase
     {
         $admin = $this->createAdmin();
         $order = $this->createOrder('delivered');
+        $order->update(['payment_status' => 'approved']);
         $shipment = $this->createShipment($order, 'delivered');
+        $this->createCodPayment($order, 'approved');
         $originalShippedAt = now()->subDays(3);
         $originalDeliveredAt = now()->subDays(2);
         $shipment->forceFill([
@@ -164,7 +168,9 @@ class ShippingWorkflowTest extends TestCase
     {
         $admin = $this->createAdmin();
         $order = $this->createOrder('delivery_failed');
+        $order->update(['payment_status' => 'rejected']);
         $shipment = $this->createShipment($order, 'returned');
+        $this->createCodPayment($order, 'rejected');
         $originalShippedAt = now()->subDays(2);
         $shipment->forceFill(['shipped_at' => $originalShippedAt])->save();
 
@@ -229,13 +235,13 @@ class ShippingWorkflowTest extends TestCase
         ]);
     }
 
-    private function createCodPayment(Order $order): Payment
+    private function createCodPayment(Order $order, string $status = 'pending'): Payment
     {
         return Payment::create([
             'order_id' => $order->id,
             'method' => 'cod',
             'amount' => $order->total,
-            'status' => 'pending',
+            'status' => $status,
         ]);
     }
 }

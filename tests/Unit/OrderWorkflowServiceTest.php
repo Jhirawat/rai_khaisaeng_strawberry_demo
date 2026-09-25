@@ -9,7 +9,9 @@ use App\Models\Inventory;
 use App\Models\InventoryLog;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
 use App\Models\Product;
+use App\Models\Shipment;
 use App\Models\User;
 use App\Services\OrderWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -57,7 +59,32 @@ class OrderWorkflowServiceTest extends TestCase
     {
         $order = $this->createOrder($from);
 
-        $transitioned = app(OrderWorkflowService::class)->transition($order, $to);
+        $workflow = app(OrderWorkflowService::class);
+        if ($to === 'paid') {
+            $order->update(['payment_status' => 'approved']);
+            Payment::create(['order_id' => $order->id, 'method' => 'bank_transfer', 'status' => 'approved', 'amount' => $order->total]);
+            $transitioned = $workflow->transition($order, $to, source: 'payment_approval');
+        } else {
+            if (in_array($to, ['preparing', 'packed', 'shipped', 'delivered', 'delivery_failed'], true)) {
+                $paymentStatus = $from === 'delivery_failed' ? 'rejected' : ($from === 'paid' ? 'approved' : 'pending');
+                $paymentMethod = $from === 'paid' ? 'bank_transfer' : 'cod';
+                $order->update(['payment_status' => $paymentStatus]);
+                Payment::create(['order_id' => $order->id, 'method' => $paymentMethod, 'status' => $paymentStatus, 'amount' => $order->total]);
+            }
+            if (in_array($to, ['preparing', 'shipped', 'delivered', 'delivery_failed'], true)) {
+                $shipmentStatus = match ($from) {
+                    'packed' => 'preparing',
+                    'shipped' => 'shipped',
+                    'delivery_failed' => 'returned',
+                    default => 'pending',
+                };
+                $shipment = Shipment::create(['order_id' => $order->id, 'status' => $shipmentStatus]);
+                $workflow->updateShipment($shipment, ['status' => $to === 'delivery_failed' ? 'returned' : $to], null);
+                $transitioned = $order->fresh();
+            } else {
+                $transitioned = $workflow->transition($order, $to);
+            }
+        }
 
         $this->assertSame($to, $transitioned->status);
         $this->assertDatabaseHas('orders', [

@@ -507,6 +507,23 @@ class PaymentWorkflowTest extends TestCase
             'user_id' => $member->id,
         ]);
         $this->assertDatabaseCount('cart_items', 0);
+
+        // Follow the actual rendered controls from the newly checked-out COD order.
+        $this->actingAs($this->createUser('admin'));
+        foreach (['preparing', 'packed', 'shipped', 'delivered'] as $status) {
+            $page = $this->get(route('admin.orders.show', $order))->assertOk();
+            $action = $status === 'packed' ? route('admin.orders.update', $order) : route('admin.shipping.update', $order->shipment);
+            $dom = new \DOMDocument;
+            @$dom->loadHTML($page->getContent());
+            $xpath = new \DOMXPath($dom);
+            $this->assertSame(1, $xpath->query('//form[@action="'.$action.'"]//option[@value="'.$status.'"]')->length);
+            $this->patch($action, ['status' => $status])->assertSessionHas('success');
+            $this->assertSame($status, $order->fresh()->status);
+            $this->assertSame($status === 'packed' ? 'preparing' : $status, $order->shipment->fresh()->status);
+        }
+        $this->assertSame('approved', $order->payment->fresh()->status);
+        $this->assertSame('approved', $order->fresh()->payment_status);
+        $this->assertNotNull($order->shipment->fresh()->delivered_at);
     }
 
     private function createUser(string $role): User

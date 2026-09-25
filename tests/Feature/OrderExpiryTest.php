@@ -20,6 +20,27 @@ class OrderExpiryTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_rejected_transfer_and_qr_orders_expire_and_restore_stock_exactly_once(): void
+    {
+        $admin = $this->createCustomer();
+        $admin->update(['role' => 'admin', 'is_active' => true]);
+        $this->actingAs($admin);
+        foreach (['bank_transfer', 'qr'] as $method) {
+            $order = $this->createPendingTransferOrder();
+            $order->payment->update(['method' => $method]);
+            $inventory = $this->createInventoryForOrder($order, 7, 3);
+            $this->post(route('admin.payments.reject', $order->payment))->assertSessionHas('success');
+            $this->artisan('orders:expire')->expectsOutput('Expired 1 pending orders; 0 failed.')->assertSuccessful();
+            $this->assertFalse(app(OrderWorkflowService::class)->expire($order));
+            $this->post(route('admin.payments.approve', $order->payment));
+            $this->assertSame('cancelled', $order->fresh()->status);
+            $this->assertSame('rejected', $order->payment->fresh()->status);
+            $this->assertSame(10, $inventory->fresh()->quantity);
+            $this->assertSame(1, InventoryLog::where('inventory_id', $inventory->id)->count());
+            $this->assertSame(1, ActivityLog::where('subject_type', Order::class)->where('subject_id', $order->id)->count());
+        }
+    }
+
     public function test_expired_transfer_order_is_cancelled_and_stock_is_restored_once(): void
     {
         $order = $this->createOrder('pending_payment', now()->subMinute());
@@ -128,6 +149,22 @@ class OrderExpiryTest extends TestCase
         $this->assertNull($order->fresh()->stock_returned_at);
         $this->assertDatabaseCount('inventory_logs', 0);
         $this->assertDatabaseCount('activity_logs', 0);
+    }
+
+    public function test_expiry_rechecks_approved_payment_after_selecting_a_rejected_candidate(): void
+    {
+        $order = $this->createPendingTransferOrder();
+        $order->update(['payment_status' => 'rejected']);
+        $order->payment->update(['status' => 'rejected']);
+        $candidate = $order->fresh();
+        $inventory = $this->createInventoryForOrder($order, 7, 3);
+        // Even an inconsistent legacy order field must not override approved payment truth.
+        $order->payment->update(['status' => 'approved']);
+        $this->assertFalse(app(OrderWorkflowService::class)->expire($candidate));
+        $this->artisan('orders:expire')->expectsOutput('Expired 0 pending orders; 0 failed.')->assertSuccessful();
+        $this->assertSame(7, $inventory->fresh()->quantity);
+        $this->assertNull($order->fresh()->stock_returned_at);
+        $this->assertDatabaseCount('inventory_logs', 0);
     }
 
     public function test_expiry_rechecks_payment_method_after_candidate_selection(): void

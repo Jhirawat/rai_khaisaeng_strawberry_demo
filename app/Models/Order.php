@@ -53,6 +53,14 @@ class Order extends Model
         return $this->hasOne(Shipment::class);
     }
 
+    public function canIssueReceipt(): bool
+    {
+        // Fulfillment-based policy, not proof of collection. Delivered COD receipts
+        // remain available even for legacy pending/rejected payment records.
+        return in_array($this->status, ['paid', 'preparing', 'packed', 'shipped', 'delivered'], true)
+            || in_array($this->payment_status, ['approved', 'paid'], true);
+    }
+
     public static function statusLabels(): array
     {
         return app()->getLocale() === 'en'

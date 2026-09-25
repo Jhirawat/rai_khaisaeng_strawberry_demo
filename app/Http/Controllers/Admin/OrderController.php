@@ -42,7 +42,7 @@ class OrderController extends Controller
             ->mapWithKeys(fn (Order $order): array => [
                 $order->getKey() => array_values(array_unique([
                     $order->status,
-                    ...$this->workflow->allowedTargets($order->status),
+                    ...$this->workflow->adminTargets($order),
                 ])),
             ])->all();
 
@@ -54,10 +54,11 @@ class OrderController extends Controller
         $order->load('items.product', 'user', 'payment', 'shipment');
         $statusOptions = array_values(array_unique([
             $order->status,
-            ...$this->workflow->allowedTargets($order->status),
+            ...$this->workflow->adminTargets($order),
         ]));
+        $shipmentOptions = $this->workflow->shipmentTargets($order);
 
-        return view('admin.orders.show', compact('order', 'statusOptions'));
+        return view('admin.orders.show', compact('order', 'statusOptions', 'shipmentOptions'));
     }
 
     public function update(Request $r, Order $order)

@@ -27,8 +27,7 @@ class ReceiptController extends Controller
 
     private function canIssue(Order $order): bool
     {
-        return in_array($order->status, ['paid', 'preparing', 'packed', 'shipped', 'delivered'], true)
-            || in_array($order->payment_status, ['approved', 'paid'], true);
+        return $order->canIssueReceipt();
     }
 
     public function show(Order $order)

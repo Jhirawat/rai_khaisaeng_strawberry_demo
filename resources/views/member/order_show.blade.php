@@ -2,7 +2,7 @@
 @section('title', __('Order').' '.$order->order_number)
 @section('content')
 @php
-    $canReceipt = in_array($order->status,['paid','preparing','packed','shipped','delivered']) || in_array($order->payment_status,['approved','paid']);
+    $canReceipt = $order->canIssueReceipt();
     $address = json_decode($order->shipping_address_snapshot ?? '{}', true) ?: [];
     $steps = ['pending_payment','paid','preparing','packed','shipped','delivered'];
     $currentStep = array_search($order->status, $steps, true);

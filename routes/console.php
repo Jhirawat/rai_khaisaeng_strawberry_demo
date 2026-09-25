@@ -21,11 +21,11 @@ Artisan::command('orders:expire', function () {
     Order::query()
         ->select('id')
         ->where('status', 'pending_payment')
-        ->where('payment_status', 'pending')
+        ->whereIn('payment_status', ['pending', 'rejected'])
         ->whereNotNull('expires_at')
         ->where('expires_at', '<', now())
         ->whereHas('payment', fn ($query) => $query
-            ->where('status', 'pending')
+            ->whereIn('status', ['pending', 'rejected'])
             ->whereIn('method', $workflow->expirablePaymentMethods()))
         ->chunkById(100, function ($orders) use ($workflow, &$expired, &$failed): void {
             foreach ($orders as $order) {

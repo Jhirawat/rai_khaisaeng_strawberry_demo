@@ -79,18 +79,19 @@ class PaymentController extends Controller
                     return ['status' => 'invalid_order'];
                 }
 
+                $lockedOrder->forceFill(['payment_status' => 'approved'])->save();
+                $lockedPayment->forceFill([
+                    'status' => 'approved',
+                    'verified_by' => $request->user()?->getKey(),
+                    'verified_at' => now(),
+                ])->save();
+
                 $approvedOrder = $this->workflow->transition(
                     $lockedOrder,
                     'paid',
                     $request->user(),
                     'payment_approval',
                 );
-                $approvedOrder->forceFill(['payment_status' => 'approved'])->save();
-                $lockedPayment->forceFill([
-                    'status' => 'approved',
-                    'verified_by' => $request->user()?->getKey(),
-                    'verified_at' => now(),
-                ])->save();
 
                 return [
                     'status' => 'reviewed',

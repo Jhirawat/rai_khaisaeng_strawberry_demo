@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\ActivityLog;
 use App\Models\Order;
+use App\Models\Payment;
+use App\Models\Shipment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -32,11 +34,11 @@ class AdminOrderWorkflowTest extends TestCase
         $order = $this->createOrder('confirmed');
 
         $response = $this->actingAs($admin)->patch(route('admin.orders.update', $order), [
-            'status' => 'preparing',
+            'status' => 'cancelled',
         ]);
 
         $response->assertRedirect()->assertSessionHas('success');
-        $this->assertSame('preparing', $order->fresh()->status);
+        $this->assertSame('cancelled', $order->fresh()->status);
         $activity = ActivityLog::where('subject_type', Order::class)
             ->where('subject_id', $order->id)
             ->sole();
@@ -53,13 +55,13 @@ class AdminOrderWorkflowTest extends TestCase
 
         $response = $this->actingAs($admin)->patch(route('admin.orders.bulkUpdate'), [
             'statuses' => [
-                $allowedOrder->id => 'paid',
+                $allowedOrder->id => 'cancelled',
                 $terminalOrder->id => 'pending_payment',
             ],
         ]);
 
         $response->assertRedirect()->assertSessionHas('error');
-        $this->assertSame('paid', $allowedOrder->fresh()->status);
+        $this->assertSame('cancelled', $allowedOrder->fresh()->status);
         $this->assertSame('delivered', $terminalOrder->fresh()->status);
         $activity = ActivityLog::where('subject_type', Order::class)
             ->where('subject_id', $allowedOrder->id)
@@ -71,6 +73,8 @@ class AdminOrderWorkflowTest extends TestCase
     {
         $admin = $this->createAdmin();
         $order = $this->createOrder('packed');
+        Payment::create(['order_id' => $order->id, 'method' => 'cod', 'status' => 'pending', 'amount' => $order->total]);
+        Shipment::create(['order_id' => $order->id, 'status' => 'preparing']);
 
         $response = $this->actingAs($admin)->get(route('admin.orders.show', $order));
 

@@ -33,10 +33,10 @@
             @if($p->status === 'pending' && $p->order->status === 'pending_payment' && in_array($p->method, ['bank_transfer', 'qr'], true))
             <form class="d-inline" method="post" action="{{route('admin.payments.approve',$p)}}">@csrf<button class="btn btn-success btn-sm rounded-pill">ยืนยันชำระสำเร็จ</button></form>
             <form class="d-inline" method="post" action="{{route('admin.payments.reject',$p)}}">@csrf<button class="btn btn-danger btn-sm rounded-pill">ปฏิเสธ</button></form>
-            @elseif($p->status !== 'pending')
-            <a class="btn btn-outline-success btn-sm rounded-pill" href="{{route('receipts.show',$p->order)}}"><i class="bi bi-receipt"></i> ใบเสร็จ</a>
             @elseif($p->method === 'cod')
-            <span class="text-muted small">ยืนยันผ่านการจัดส่ง</span>
+            <a class="btn btn-outline-primary btn-sm rounded-pill" href="{{route('admin.orders.show',$p->order)}}#shipping-workflow">จัดการการจัดส่ง / Shipping</a>
+            @elseif($p->order->canIssueReceipt())
+            <a class="btn btn-outline-success btn-sm rounded-pill" href="{{route('receipts.show',$p->order)}}"><i class="bi bi-receipt"></i> ใบเสร็จ</a>
             @endif
         </td>
     </tr>
